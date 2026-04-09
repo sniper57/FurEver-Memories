@@ -1,0 +1,6 @@
+{
+  "name": "furever/memories",
+  "require": {
+    "gumlet/php-image-resize": "^2.0"
+  }
+}
