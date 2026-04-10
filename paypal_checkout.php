@@ -46,7 +46,16 @@ try {
             throw new RuntimeException('PayPal did not return a valid order token.');
         }
 
-        $captureResponse = paypal_request('POST', '/v2/checkout/orders/' . rawurlencode($token) . '/capture', (object) []);
+        $orderDetails = paypal_request('GET', '/v2/checkout/orders/' . rawurlencode($token));
+        $orderStatus = strtoupper(trim((string)($orderDetails['status'] ?? '')));
+
+        if ($orderStatus === 'COMPLETED') {
+            $captureResponse = $orderDetails;
+        } elseif ($orderStatus === 'APPROVED') {
+            $captureResponse = paypal_request('POST', '/v2/checkout/orders/' . rawurlencode($token) . '/capture', (object) []);
+        } else {
+            throw new RuntimeException('PayPal returned the order in an unexpected state: ' . ($orderStatus !== '' ? $orderStatus : 'unknown') . '.');
+        }
 
         $result = activate_subscription_from_paypal_capture($captureResponse, (int)$user['id']);
         log_audit('paypal.checkout.capture', 'PayPal payment captured and memorial access activated.', 'client_subscription', (int)($result['subscription']['id'] ?? 0), [
@@ -60,6 +69,11 @@ try {
 
     redirect('subscription.php');
 } catch (Throwable $e) {
+    log_audit('paypal.checkout.error', 'PayPal checkout return failed.', 'user', (int)($user['id'] ?? 0), [
+        'action' => $action ?? null,
+        'token' => $token ?? null,
+        'error' => $e->getMessage(),
+    ]);
     flash_set('warning', $e->getMessage());
     redirect('subscription.php');
 }

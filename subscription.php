@@ -16,7 +16,8 @@ $plans = fetch_subscription_plans(true);
 $subscription = fetch_latest_subscription_for_user((int)$user['id']);
 $payments = fetch_subscription_payments_for_user((int)$user['id']);
 $accessSummary = memorial_public_access_summary((int)$user['id'], $memorial ?: null);
-$success = '';
+$success = flash_get('success');
+$warning = flash_get('warning');
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -87,6 +88,7 @@ $paypalConfigured = paypal_is_configured();
 <?php include __DIR__ . '/includes/topbar.php'; ?>
 <div class="container py-4 admin-shell">
     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
+    <?php if ($warning): ?><div class="alert alert-warning"><?= e($warning) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
 
     <div class="row g-4">
