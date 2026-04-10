@@ -846,6 +846,64 @@ function fetch_subscription_payment_by_order_id(string $orderId): ?array
     return $stmt->fetch() ?: null;
 }
 
+function register_paypal_checkout_order(array $subscription, array $user, array $orderResponse): array
+{
+    $orderId = trim((string)($orderResponse['id'] ?? ''));
+    if ($orderId === '') {
+        throw new RuntimeException('PayPal did not return a valid order ID.');
+    }
+
+    $existing = fetch_subscription_payment_by_order_id($orderId);
+    if ($existing) {
+        return $existing;
+    }
+
+    db()->prepare('INSERT INTO subscription_payments (subscription_id, user_id, payment_method, amount, currency, reference_number, payer_name, payer_contact, status, gateway_provider, gateway_order_id, raw_response_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([
+            $subscription['id'],
+            $user['id'],
+            'paypal',
+            $subscription['amount'],
+            $subscription['currency'] ?: 'PHP',
+            $orderId,
+            $user['full_name'] ?? 'PayPal Payer',
+            $user['email'] ?? null,
+            'pending',
+            'paypal',
+            $orderId,
+            json_encode($orderResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            now(),
+            now(),
+        ]);
+
+    return fetch_subscription_payment_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function paypal_subscription_id_from_response(array $response): int
+{
+    $purchaseUnit = $response['purchase_units'][0] ?? [];
+    $capture = $purchaseUnit['payments']['captures'][0] ?? [];
+
+    $candidates = [
+        (string)($purchaseUnit['custom_id'] ?? ''),
+        (string)($capture['custom_id'] ?? ''),
+    ];
+
+    $referenceId = trim((string)($purchaseUnit['reference_id'] ?? ''));
+    if ($referenceId !== '' && preg_match('/subscription-(\d+)/i', $referenceId, $matches)) {
+        $candidates[] = $matches[1];
+    }
+
+    foreach ($candidates as $candidate) {
+        $value = (int)trim($candidate);
+        if ($value > 0) {
+            return $value;
+        }
+    }
+
+    return 0;
+}
+
 function create_paypal_checkout_order(array $subscription, array $user, string $returnUrl, string $cancelUrl): array
 {
     if (!$subscription || empty($subscription['id']) || empty($subscription['plan_name'])) {
@@ -897,7 +955,7 @@ function create_paypal_checkout_order(array $subscription, array $user, string $
     ];
 }
 
-function activate_subscription_from_paypal_capture(array $captureResponse, int $expectedUserId): array
+function activate_subscription_from_paypal_capture(array $captureResponse, int $expectedUserId = 0): array
 {
     $orderId = trim((string)($captureResponse['id'] ?? ''));
     if ($orderId === '') {
@@ -905,20 +963,24 @@ function activate_subscription_from_paypal_capture(array $captureResponse, int $
     }
 
     $existingPayment = fetch_subscription_payment_by_order_id($orderId);
-    if ($existingPayment) {
-        $subscription = fetch_latest_subscription_for_user($expectedUserId);
+    if ($existingPayment && ($existingPayment['status'] ?? '') === 'approved') {
+        $subscription = fetch_subscription_by_id((int)$existingPayment['subscription_id']);
         return [
             'payment' => $existingPayment,
             'subscription' => $subscription,
+            'resolved_user_id' => (int)($existingPayment['user_id'] ?? 0),
+            'current_user_matches' => $expectedUserId > 0 && (int)($existingPayment['user_id'] ?? 0) === $expectedUserId,
         ];
     }
 
     $purchaseUnit = $captureResponse['purchase_units'][0] ?? [];
-    $subscriptionId = (int)($purchaseUnit['custom_id'] ?? 0);
+    $subscriptionId = $existingPayment ? (int)($existingPayment['subscription_id'] ?? 0) : paypal_subscription_id_from_response($captureResponse);
     $subscription = fetch_subscription_by_id($subscriptionId);
-    if (!$subscription || (int)($subscription['user_id'] ?? 0) !== $expectedUserId) {
+    if (!$subscription) {
         throw new RuntimeException('Unable to match this PayPal payment to your memorial subscription.');
     }
+
+    $resolvedUserId = (int)($subscription['user_id'] ?? 0);
 
     $capture = $purchaseUnit['payments']['captures'][0] ?? [];
     $captureId = trim((string)($capture['id'] ?? ''));
@@ -942,34 +1004,58 @@ function activate_subscription_from_paypal_capture(array $captureResponse, int $
     $payerContact = (string)($payer['email_address'] ?? '');
     $referenceNumber = $captureId !== '' ? $captureId : $orderId;
 
-    db()->prepare('INSERT INTO subscription_payments (subscription_id, user_id, payment_method, amount, currency, reference_number, payer_name, payer_contact, status, gateway_provider, gateway_order_id, gateway_capture_id, gateway_payer_id, raw_response_json, reviewed_at, review_notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        ->execute([
-            $subscription['id'],
-            $expectedUserId,
-            'paypal',
-            $amount,
-            $currency,
-            $referenceNumber,
-            $payerName,
-            $payerContact !== '' ? $payerContact : null,
-            'approved',
-            'paypal',
-            $orderId,
-            $captureId !== '' ? $captureId : null,
-            trim((string)($payer['payer_id'] ?? '')) ?: null,
-            json_encode($captureResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            now(),
-            'Activated automatically after PayPal payment capture.',
-            now(),
-            now(),
-        ]);
+    if ($existingPayment) {
+        db()->prepare('UPDATE subscription_payments SET payment_method = ?, amount = ?, currency = ?, reference_number = ?, payer_name = ?, payer_contact = ?, status = ?, gateway_provider = ?, gateway_capture_id = ?, gateway_payer_id = ?, raw_response_json = ?, reviewed_at = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+            ->execute([
+                'paypal',
+                $amount,
+                $currency,
+                $referenceNumber,
+                $payerName,
+                $payerContact !== '' ? $payerContact : null,
+                'approved',
+                'paypal',
+                $captureId !== '' ? $captureId : null,
+                trim((string)($payer['payer_id'] ?? '')) ?: null,
+                json_encode($captureResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                now(),
+                'Activated automatically after PayPal payment capture.',
+                now(),
+                $existingPayment['id'],
+            ]);
+        $paymentId = (int)$existingPayment['id'];
+    } else {
+        db()->prepare('INSERT INTO subscription_payments (subscription_id, user_id, payment_method, amount, currency, reference_number, payer_name, payer_contact, status, gateway_provider, gateway_order_id, gateway_capture_id, gateway_payer_id, raw_response_json, reviewed_at, review_notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([
+                $subscription['id'],
+                $resolvedUserId,
+                'paypal',
+                $amount,
+                $currency,
+                $referenceNumber,
+                $payerName,
+                $payerContact !== '' ? $payerContact : null,
+                'approved',
+                'paypal',
+                $orderId,
+                $captureId !== '' ? $captureId : null,
+                trim((string)($payer['payer_id'] ?? '')) ?: null,
+                json_encode($captureResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                now(),
+                'Activated automatically after PayPal payment capture.',
+                now(),
+                now(),
+            ]);
+        $paymentId = (int)db()->lastInsertId();
+    }
 
-    $paymentId = (int)db()->lastInsertId();
     approve_subscription_payment($paymentId, 0, 'Activated automatically after PayPal payment capture.');
 
     return [
         'payment' => fetch_subscription_payment_by_id($paymentId),
         'subscription' => fetch_subscription_by_id((int)$subscription['id']),
+        'resolved_user_id' => $resolvedUserId,
+        'current_user_matches' => $expectedUserId > 0 && $resolvedUserId === $expectedUserId,
     ];
 }
 
