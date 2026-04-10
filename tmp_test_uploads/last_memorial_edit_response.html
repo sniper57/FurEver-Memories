@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Memorial Builder - FurEver Memories</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>.thumb-preview{width:80px;height:80px;object-fit:cover;border-radius:12px;border:1px solid #ddd}</style>
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="dashboard.php">FurEver Memories</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMain">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                                    <li class="nav-item"><a class="nav-link" href="admin_clients.php">Clients</a></li>
+                    <li class="nav-item"><a class="nav-link" href="audit_logs.php">Audit Logs</a></li>
+                                                <li class="nav-item"><a class="nav-link" href="memorial_edit.php">Page Builder</a></li>
+                <li class="nav-item"><a class="nav-link" href="change_password.php">Change Password</a></li>
+                <li class="nav-item"><span class="badge text-bg-light border">administrator</span></li>
+                <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+        <div>
+            <h1 class="h3 mb-1">Memorial Builder</h1>
+            <div class="text-muted">Client: Shirley Galacgac</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="furever_memories/c/049e4cbe-a469-4010-bc5c-845f95435cfb" target="_blank" class="btn btn-dark">Open Page</a>
+            <button type="button" class="btn btn-outline-dark" onclick="navigator.clipboard.writeText('furever_memories/c/049e4cbe-a469-4010-bc5c-845f95435cfb')">Copy Link</button>
+        </div>
+    </div>
+
+        <div class="alert alert-danger">Call to undefined function Gumlet\imagecreatefromjpeg()</div>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4">
+                <input type="hidden" name="_csrf" value="b0374b83c23cac025b84f05bf1c5e3951ffd0182475d0b210e0e2b998bb627f8">
+                <div class="card-body p-4">
+                    <h2 class="h5">Main Page Details</h2>
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label">Pet Name</label><input name="pet_name" class="form-control" value="asdasdad"></div>
+                        <div class="col-md-3"><label class="form-label">Birth Date</label><input type="date" name="pet_birth_date" class="form-control" value="2026-04-08"></div>
+                        <div class="col-md-3"><label class="form-label">Memorial Date</label><input type="date" name="pet_memorial_date" class="form-control" value="2026-04-08"></div>
+                        <div class="col-12"><label class="form-label">Short Tribute</label><textarea name="short_tribute" class="form-control wysiwyg-editor" rows="3">&lt;p&gt;asddasddasd&lt;/p&gt;</textarea></div>
+                        
+                        <!-- Portrait Background -->
+                        <label class="form-label">Portrait Background</label>
+                        <input type="file" name="bg_portrait" class="form-control img-preview-input" data-preview="preview_portrait">
+                        <img id="preview_portrait" src="furever_memories/uploads/049e4cbe-a469-4010-bc5c-845f95435cfb/bg_portrait_20260407_070852_ccf137db.png" class="img-fluid rounded mt-2" style="max-height:200px;">
+                        
+                        <!-- Landscape Background -->
+                        <label class="form-label mt-3">Landscape Background</label>
+                        <input type="file" name="bg_landscape" class="form-control img-preview-input" data-preview="preview_landscape">
+                        <img id="preview_landscape" src="furever_memories/uploads/049e4cbe-a469-4010-bc5c-845f95435cfb/bg_landscape_20260407_070858_a42888f0.png" class="img-fluid rounded mt-2" style="max-height:200px;">
+                        
+                        <!-- Cover Photo -->
+                        <label class="form-label mt-3">Pet Cover Photo</label>
+                        <input type="file" name="cover_photo" class="form-control img-preview-input" data-preview="preview_cover">
+                        <img id="preview_cover" src="furever_memories/uploads/049e4cbe-a469-4010-bc5c-845f95435cfb/cover_20260407_070907_23bf18d6.png" class="img-fluid rounded mt-2" style="max-height:200px;">
+                        
+                        <div class="col-12"><label class="form-label">Final Letter</label><textarea name="final_letter" class="form-control wysiwyg-editor" rows="6">&lt;p&gt;qweqwqwe&lt;/p&gt;</textarea></div>
+                        <div class="col-md-4"><label class="form-label">Video Mode</label>
+                            <select name="video_type" class="form-select">
+                                <option value="none" >None</option>
+                                <option value="file" >Upload File</option>
+                                <option value="youtube" selected>YouTube Link</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4"><label class="form-label">Video Max MB</label><input type="number" name="video_max_mb" class="form-control" value="50"></div>
+                        <div class="col-md-4"><label class="form-label">Video File</label><input type="file" name="video_file" class="form-control" accept="video/*"></div>
+                        <div class="col-12"><label class="form-label">YouTube URL</label><input name="video_url" class="form-control" value="https://www.youtube.com/watch?v=-Wn9bvoUqyg"></div>
+                        <div class="col-12"><label class="form-label">Footer Text</label><input name="share_footer_text" class="form-control" value="Created with love through FurEver Memories"></div>
+                    </div>
+
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Timeline of Memories</h2>
+                        <button type="button" class="btn btn-sm btn-outline-dark" id="addTimeline">Add Row</button>
+                    </div>
+                    <div id="timelineWrap">
+                                                                            <div class="border rounded-4 p-3 mb-3 timeline-row">
+                                <div class="row g-3">
+                                    <div class="col-md-4"><input name="timeline_title[]" class="form-control" placeholder="Title" value=""></div>
+                                    <div class="col-md-3"><input type="date" name="timeline_date[]" class="form-control" value=""></div>
+                                    <div class="col-md-5"><input type="file" name="timeline_photo[]" class="form-control" accept="image/*"><input type="hidden" name="timeline_existing_photo[]" value=""></div>
+                                    <div class="col-12"><textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="2" placeholder="Description"></textarea></div>
+                                </div>
+                            </div>
+                                            </div>
+
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Photo Gallery</h2>
+                    </div>
+                    <div id="galleryWrap">
+                        <div class="border rounded-4 p-3 mb-3">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Upload Gallery Photos</label>
+                                    <input type="file" name="gallery_photo_batch[]" class="form-control" accept="image/*" multiple>
+                                    <div class="form-text">You can select and upload multiple images at once. Caption field is hidden for now.</div>
+                                </div>
+                                                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Background Music Playlist</h2>
+                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addMusic">+ Add Music</button>
+                    </div>
+                   <div id="musicWrap"></div>
+
+                    <button class="btn btn-dark mt-2">Save Memorial Page</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h2 class="h5 mb-3">Share / QR</h2>
+                                        <div id="qrcode" class="mb-3"></div>
+                    <button type="button" class="btn btn-success w-100 mb-2" id="downloadQrBtn">Download QR Code</button>
+                    <input class="form-control mb-2" readonly value="furever_memories/c/049e4cbe-a469-4010-bc5c-845f95435cfb">
+                    <button type="button" class="btn btn-outline-dark w-100 mb-2" onclick="navigator.clipboard.writeText('furever_memories/c/049e4cbe-a469-4010-bc5c-845f95435cfb')">Copy Link</button>
+                    <a href="moderation.php?clientguid=049e4cbe-a469-4010-bc5c-845f95435cfb" class="btn btn-outline-primary w-100">Moderate Messages</a>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <h2 class="h5">Upload Notes</h2>
+                    <ul class="small mb-0">
+                        <li>Images are resized and optimized on upload.</li>
+                        <li>Target image size is around 500 KB max.</li>
+                        <li>Use portrait and landscape backgrounds for flexible viewing.</li>
+                        <li>Video can be uploaded or embedded via YouTube.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+<script>
+new QRCode(document.getElementById('qrcode'), { text: "furever_memories\/c\/049e4cbe-a469-4010-bc5c-845f95435cfb", width: 180, height: 180 });
+
+function initEditors(scope = document) {
+    const editors = scope.querySelectorAll('.wysiwyg-editor');
+    editors.forEach((el) => {
+        if (el.dataset.ckeditorInitialized === '1') return;
+
+        ClassicEditor
+            .create(el, {
+                toolbar: [
+                    'heading', '|',
+                    'bold', 'italic', 'link', '|',
+                    'bulletedList', 'numberedList', '|',
+                    'blockQuote', '|',
+                    'undo', 'redo'
+                ]
+            })
+            .then(editor => {
+                el.dataset.ckeditorInitialized = '1';
+            })
+            .catch(error => {
+                console.error('CKEditor init error:', error);
+            });
+    });
+}
+
+initEditors();
+
+$('#addTimeline').on('click', function(){
+    const html = `
+        <div class="border rounded-4 p-3 mb-3 timeline-row">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input name="timeline_title[]" class="form-control" placeholder="Title">
+                </div>
+                <div class="col-md-3">
+                    <input type="date" name="timeline_date[]" class="form-control">
+                </div>
+                <div class="col-md-5">
+                    <input type="file" name="timeline_photo[]" class="form-control" accept="image/*">
+                    <input type="hidden" name="timeline_existing_photo[]" value="">
+                </div>
+                <div class="col-12">
+                    <textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="2" placeholder="Description"></textarea>
+                </div>
+            </div>
+        </div>
+    `;
+    $('#timelineWrap').append(html);
+
+    const newRow = $('#timelineWrap .timeline-row').last()[0];
+    initEditors(newRow);
+});
+
+$('#addMusic').on('click', function(){
+    $('#musicWrap').append(`
+        <div class="border rounded-4 p-3 mb-3 music-row">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select name="music_type[]" class="form-select music-type">
+                        <option value="youtube">YouTube</option>
+                        <option value="mp3">MP3 Upload</option>
+                    </select>
+                </div>
+
+                <div class="col-md-9 youtube-field">
+                    <input name="music_url[]" class="form-control" placeholder="YouTube Link">
+                </div>
+
+                <div class="col-md-9 mp3-field d-none">
+                    <input type="file" name="music_file[]" class="form-control" accept=".mp3">
+                </div>
+            </div>
+        </div>
+    `);
+});
+
+$(document).on('change', '.music-type', function(){
+    const parent = $(this).closest('.music-row');
+
+    if($(this).val() === 'youtube'){
+        parent.find('.youtube-field').removeClass('d-none');
+        parent.find('.mp3-field').addClass('d-none');
+    } else {
+        parent.find('.youtube-field').addClass('d-none');
+        parent.find('.mp3-field').removeClass('d-none');
+    }
+});
+
+document.getElementById('downloadQrBtn').addEventListener('click', function () {
+    const qrContainer = document.getElementById('qrcode');
+    const img = qrContainer.querySelector('img');
+    const canvas = qrContainer.querySelector('canvas');
+
+    let dataUrl = '';
+    if (img) {
+        dataUrl = img.src;
+    } else if (canvas) {
+        dataUrl = canvas.toDataURL('image/png');
+    }
+
+    if (dataUrl) {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'furever-memories-qr.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+});
+
+document.querySelectorAll('.gallery-keep-toggle').forEach(function(toggle){
+    toggle.addEventListener('change', function(){
+        const hiddenInput = this.closest('.border').querySelector('input[type="hidden"][name="gallery_existing_photo[]"]');
+        if (!this.checked && hiddenInput) {
+            hiddenInput.dataset.originalValue = hiddenInput.value;
+            hiddenInput.value = '';
+        } else if (this.checked && hiddenInput && hiddenInput.dataset.originalValue !== undefined) {
+            hiddenInput.value = hiddenInput.dataset.originalValue;
+        }
+    });
+});
+
+
+
+document.querySelectorAll('.img-preview-input').forEach(input => {
+    input.addEventListener('change', function(e){
+        const file = e.target.files[0];
+        const previewId = e.target.dataset.preview;
+
+        if(file){
+            const reader = new FileReader();
+            reader.onload = function(ev){
+                document.getElementById(previewId).src = ev.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+});
+
+
+
+</script>
+</body>
+</html>
+

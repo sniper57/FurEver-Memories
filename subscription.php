@@ -35,6 +35,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Subscription request created. You can now submit your payment proof for review.';
         }
 
+        if ($action === 'cancel_subscription') {
+            $subscriptionId = (int)($_POST['subscription_id'] ?? 0);
+            $cancelledSubscription = cancel_subscription_request($subscriptionId, (int)$user['id']);
+            log_audit('subscription.request.cancel', 'Client cancelled a pending subscription request.', 'client_subscription', (int)($cancelledSubscription['id'] ?? $subscriptionId), [
+                'subscription_id' => $cancelledSubscription['id'] ?? $subscriptionId,
+                'plan_id' => $cancelledSubscription['plan_id'] ?? null,
+                'status' => $cancelledSubscription['status'] ?? 'cancelled',
+            ]);
+            $success = 'Subscription request cancelled. You can now select a different plan.';
+        }
+
         if ($action === 'submit_payment') {
             $subscriptionId = (int)($_POST['subscription_id'] ?? 0);
             $proofPath = '';
@@ -116,6 +127,15 @@ $paypalConfigured = paypal_is_configured();
                                     <span class="badge <?= e(subscription_status_badge_class((string)$subscription['status'])) ?>"><?= e(ucwords(str_replace('_', ' ', (string)$subscription['status']))) ?></span>
                                     <div class="mt-2 fw-semibold"><?= e($subscription['plan_name'] ?? 'Selected plan') ?></div>
                                     <div class="small text-muted">PHP <?= e(number_format((float)($subscription['amount'] ?? 0), 2)) ?></div>
+                                    <?php if (in_array((string)($subscription['status'] ?? ''), ['pending_payment', 'rejected'], true)): ?>
+                                        <form method="post" class="mt-3">
+                                            <?= csrf_input() ?>
+                                            <input type="hidden" name="action" value="cancel_subscription">
+                                            <input type="hidden" name="subscription_id" value="<?= (int)$subscription['id'] ?>">
+                                            <button class="btn btn-outline-danger btn-sm" type="submit">Cancel Current Request</button>
+                                        </form>
+                                        <div class="small text-muted mt-2">Cancel this request first if you want to switch to a different plan.</div>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <div class="fw-semibold">No subscription request yet</div>
                                 <?php endif; ?>
@@ -147,6 +167,18 @@ $paypalConfigured = paypal_is_configured();
 
                     <?php if ($subscription && in_array((string)$subscription['status'], ['pending_payment', 'rejected'], true)): ?>
                         <h2 class="h5 mb-3">Complete your payment</h2>
+                        <div class="alert alert-light border rounded-4 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                            <div>
+                                <strong>Need to change your selected plan?</strong>
+                                <div class="small text-muted">Cancel this pending request first, then choose the plan you really want to pay for.</div>
+                            </div>
+                            <form method="post" class="m-0">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="action" value="cancel_subscription">
+                                <input type="hidden" name="subscription_id" value="<?= (int)$subscription['id'] ?>">
+                                <button class="btn btn-outline-danger" type="submit">Cancel This Plan</button>
+                            </form>
+                        </div>
                         <div class="card border-0 shadow-sm rounded-4 mb-4">
                             <div class="card-body p-4">
                                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">

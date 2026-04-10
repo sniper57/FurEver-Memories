@@ -821,8 +821,25 @@ function create_subscription_request(int $userId, int $planId): array
     }
 
     $existing = fetch_latest_subscription_for_user($userId);
-    if ($existing && in_array((string)$existing['status'], ['pending_payment', 'pending_review'], true)) {
-        return $existing;
+    if ($existing) {
+        $existingStatus = (string)($existing['status'] ?? '');
+        $samePlan = (int)($existing['plan_id'] ?? 0) === $planId;
+
+        if ($existingStatus === 'active') {
+            throw new RuntimeException('Your subscription is already active.');
+        }
+
+        if ($existingStatus === 'pending_review') {
+            throw new RuntimeException('Your latest payment is still under review. Please wait for the admin decision before starting a new request.');
+        }
+
+        if (in_array($existingStatus, ['pending_payment', 'rejected'], true)) {
+            if ($samePlan) {
+                return $existing;
+            }
+
+            throw new RuntimeException('Please cancel your current subscription request first before selecting a different plan.');
+        }
     }
 
     db()->prepare('INSERT INTO client_subscriptions (user_id, plan_id, status, amount, currency, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
@@ -837,6 +854,41 @@ function create_subscription_request(int $userId, int $planId): array
         ]);
 
     return fetch_subscription_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function cancel_subscription_request(int $subscriptionId, int $userId): array
+{
+    $subscription = fetch_subscription_by_id($subscriptionId);
+    if (!$subscription || (int)($subscription['user_id'] ?? 0) !== $userId) {
+        throw new RuntimeException('Subscription request not found.');
+    }
+
+    $status = (string)($subscription['status'] ?? '');
+    if (!in_array($status, ['pending_payment', 'rejected'], true)) {
+        throw new RuntimeException('Only pending subscription requests can be cancelled.');
+    }
+
+    $note = 'Cancelled by client before payment completion.';
+
+    db()->prepare('UPDATE client_subscriptions SET status = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute([
+            'cancelled',
+            $note,
+            now(),
+            $subscriptionId,
+        ]);
+
+    db()->prepare('UPDATE subscription_payments SET status = ?, reviewed_at = ?, review_notes = ?, updated_at = ? WHERE subscription_id = ? AND status = ?')
+        ->execute([
+            'rejected',
+            now(),
+            $note,
+            now(),
+            $subscriptionId,
+            'pending',
+        ]);
+
+    return fetch_subscription_by_id($subscriptionId) ?: [];
 }
 
 function fetch_subscription_payment_by_order_id(string $orderId): ?array
@@ -918,6 +970,10 @@ function create_paypal_checkout_order(array $subscription, array $user, string $
         throw new RuntimeException('This subscription is already active.');
     }
 
+    if (($subscription['status'] ?? '') === 'cancelled') {
+        throw new RuntimeException('This subscription request was already cancelled. Please select a new plan before checking out.');
+    }
+
     $amountValue = number_format((float)($subscription['amount'] ?? 0), 2, '.', '');
     if ((float)$amountValue <= 0) {
         throw new RuntimeException('Invalid subscription amount.');
@@ -978,6 +1034,10 @@ function activate_subscription_from_paypal_capture(array $captureResponse, int $
     $subscription = fetch_subscription_by_id($subscriptionId);
     if (!$subscription) {
         throw new RuntimeException('Unable to match this PayPal payment to your memorial subscription.');
+    }
+
+    if (($subscription['status'] ?? '') === 'cancelled') {
+        throw new RuntimeException('This PayPal checkout belongs to a cancelled subscription request. Please start a new checkout for your selected plan.');
     }
 
     $resolvedUserId = (int)($subscription['user_id'] ?? 0);
