@@ -6,7 +6,7 @@
                     <div class="card-body p-4">
                         <h2 class="h4 mb-3">Message Wall</h2>
                         <p class="text-muted small">Messages are subject to approval by the family.</p>
-                        <form method="post" enctype="multipart/form-data">
+                        <form method="post" enctype="multipart/form-data" action="<?= e($publicUrl) ?>">
                             <?= csrf_input() ?>
                             <input type="hidden" name="action" value="message">
                             <div class="mb-3"><label class="form-label">Your Name</label><input name="visitor_name" class="form-control" required></div>
@@ -32,7 +32,7 @@
                                         <?php endif; ?>
                                         <div>
                                             <div class="fw-semibold"><?= e($message['visitor_name']) ?></div>
-                                            <div class="small text-muted"><?= e($message['created_at']) ?></div>
+                                            <div class="small text-muted"><?= e(format_display_date($message['created_at'])) ?></div>
                                         </div>
                                     </div>
                                     <p class="mb-0 text-secondary"><?= nl2br(e($message['message'])) ?></p>

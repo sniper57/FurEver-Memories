@@ -149,9 +149,168 @@ function require_verified_client(): void
     }
 }
 
+function is_local_host(?string $host = null): bool
+{
+    $host = $host ?? ($_SERVER['HTTP_HOST'] ?? '');
+    return $host !== '' && (bool)preg_match('/^(localhost|127\.0\.0\.1)(:\d+)?$/i', $host);
+}
+
 function public_memorial_url(string $clientGuid): string
 {
+    if (is_local_host()) {
+        return rtrim(BASE_URL, '/') . '/index.php?c=' . rawurlencode($clientGuid);
+    }
+
     return rtrim(BASE_URL, '/') . '/c/' . rawurlencode($clientGuid);
+}
+
+function dom_inner_html(DOMNode $node): string
+{
+    $html = '';
+    foreach ($node->childNodes as $child) {
+        $html .= $node->ownerDocument->saveHTML($child);
+    }
+    return $html;
+}
+
+function unwrap_dom_element(DOMElement $element): void
+{
+    $parent = $element->parentNode;
+    if (!$parent) {
+        return;
+    }
+
+    while ($element->firstChild) {
+        $parent->insertBefore($element->firstChild, $element);
+    }
+
+    $parent->removeChild($element);
+}
+
+function sanitize_rich_text_node(DOMNode $node, array $allowedTags, array $allowedAttributes): void
+{
+    if (!$node->hasChildNodes()) {
+        return;
+    }
+
+    $children = [];
+    foreach ($node->childNodes as $child) {
+        $children[] = $child;
+    }
+
+    foreach ($children as $child) {
+        if ($child instanceof DOMComment) {
+            $node->removeChild($child);
+            continue;
+        }
+
+        if (!$child instanceof DOMElement) {
+            continue;
+        }
+
+        $tag = strtolower($child->tagName);
+        if (!in_array($tag, $allowedTags, true)) {
+            unwrap_dom_element($child);
+            continue;
+        }
+
+        $attributes = [];
+        foreach ($child->attributes as $attribute) {
+            $attributes[] = $attribute->name;
+        }
+
+        $allowedForTag = $allowedAttributes[$tag] ?? [];
+        foreach ($attributes as $attributeName) {
+            $normalizedName = strtolower($attributeName);
+            if (!in_array($normalizedName, $allowedForTag, true)) {
+                $child->removeAttribute($attributeName);
+                continue;
+            }
+
+            if ($tag === 'a' && $normalizedName === 'href') {
+                $href = trim($child->getAttribute($attributeName));
+                if (
+                    $href === '' ||
+                    preg_match('/^\s*javascript:/i', $href) ||
+                    !preg_match('~^(https?://|mailto:|tel:|/|#)~i', $href)
+                ) {
+                    $child->removeAttribute($attributeName);
+                }
+            }
+        }
+
+        if ($tag === 'a') {
+            if ($child->hasAttribute('target')) {
+                $child->setAttribute('rel', 'noopener noreferrer');
+            } else {
+                $child->removeAttribute('rel');
+            }
+        }
+
+        sanitize_rich_text_node($child, $allowedTags, $allowedAttributes);
+    }
+}
+
+function render_rich_text(?string $html): string
+{
+    $html = trim((string)$html);
+    if ($html === '') {
+        return '';
+    }
+
+    $allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'blockquote', 'a', 'h2', 'h3', 'h4'];
+    $allowedAttributes = [
+        'a' => ['href', 'target', 'rel'],
+    ];
+
+    if (!class_exists('DOMDocument')) {
+        return nl2br(e(strip_tags($html, '<p><br><strong><b><em><i><u><ul><ol><li><blockquote><a><h2><h3><h4>')));
+    }
+
+    $previousErrors = libxml_use_internal_errors(true);
+    $dom = new DOMDocument('1.0', 'UTF-8');
+    $wrapperId = '__fm_rich_text__';
+    $loaded = $dom->loadHTML(
+        '<?xml encoding="utf-8" ?><div id="' . $wrapperId . '">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+
+    if (!$loaded) {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousErrors);
+        return nl2br(e($html));
+    }
+
+    $wrapper = $dom->getElementById($wrapperId);
+    if (!$wrapper) {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousErrors);
+        return nl2br(e($html));
+    }
+
+    sanitize_rich_text_node($wrapper, $allowedTags, $allowedAttributes);
+    $output = trim(dom_inner_html($wrapper));
+
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousErrors);
+
+    return $output;
+}
+
+function format_display_date(?string $value, bool $includeTime = false): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+
+    try {
+        $date = new DateTime($value);
+    } catch (Throwable $e) {
+        return $value;
+    }
+
+    return $date->format($includeTime ? 'F j, Y g:i A' : 'F j, Y');
 }
 
 function password_is_strong_enough(string $password): bool
@@ -207,9 +366,22 @@ function fetch_gallery_items(int $memorialId): array
 
 function fetch_music_items(int $memorialId): array
 {
-    $stmt = db()->prepare('SELECT * FROM memorial_music WHERE memorial_page_id = ? ORDER BY sort_order ASC, id ASC');
+    $stmt = db()->prepare('SELECT * FROM memorial_playlist WHERE memorial_page_id = ? ORDER BY sort_order ASC, id ASC');
     $stmt->execute([$memorialId]);
-    return $stmt->fetchAll();
+    $items = $stmt->fetchAll();
+
+    foreach ($items as &$item) {
+        $filePath = isset($item['file_path']) ? preg_replace('~/+~', '/', (string)$item['file_path']) : '';
+        if (($item['type'] ?? '') === 'mp3' && $filePath !== '') {
+            $item['file_path'] = $filePath;
+            $item['music_url'] = rtrim(BASE_URL, '/') . '/' . ltrim($filePath, '/');
+        } else {
+            $item['music_url'] = $item['url'] ?? '';
+        }
+    }
+    unset($item);
+
+    return $items;
 }
 
 function fetch_messages(int $memorialId, bool $approvedOnly = true): array
@@ -222,6 +394,33 @@ function fetch_messages(int $memorialId, bool $approvedOnly = true): array
     $stmt = db()->prepare($sql);
     $stmt->execute([$memorialId]);
     return $stmt->fetchAll();
+}
+
+function record_memorial_view(int $memorialId, int $cooldownSeconds = 1800): void
+{
+    $sessionKey = 'memorial_viewed_at_' . $memorialId;
+    $lastViewedAt = (int)($_SESSION[$sessionKey] ?? 0);
+    if ($lastViewedAt > 0 && (time() - $lastViewedAt) < $cooldownSeconds) {
+        return;
+    }
+
+    db()->prepare('INSERT INTO memorial_page_views (memorial_page_id, session_id, visitor_ip_hash, user_agent, viewed_at) VALUES (?,?,?,?,?)')
+        ->execute([
+            $memorialId,
+            session_id() ?: null,
+            hash_ip(client_ip()),
+            user_agent(),
+            now(),
+        ]);
+
+    $_SESSION[$sessionKey] = time();
+}
+
+function count_memorial_views(int $memorialId): int
+{
+    $stmt = db()->prepare('SELECT COUNT(*) FROM memorial_page_views WHERE memorial_page_id = ?');
+    $stmt->execute([$memorialId]);
+    return (int)$stmt->fetchColumn();
 }
 
 function count_pending_messages(int $memorialId): int
@@ -247,7 +446,7 @@ function count_hearts(int $memorialId): int
 
 function recent_reactors(int $memorialId, string $reactionType, int $limit = 12): array
 {
-    $stmt = db()->prepare('SELECT visitor_name FROM memorial_reactions WHERE memorial_page_id = ? AND reaction_type = ? ORDER BY created_at DESC LIMIT ' . (int)$limit);
+    $stmt = db()->prepare('SELECT visitor_name, MAX(created_at) AS last_created_at FROM memorial_reactions WHERE memorial_page_id = ? AND reaction_type = ? GROUP BY visitor_name ORDER BY last_created_at DESC LIMIT ' . (int)$limit);
     $stmt->execute([$memorialId, $reactionType]);
     return $stmt->fetchAll();
 }

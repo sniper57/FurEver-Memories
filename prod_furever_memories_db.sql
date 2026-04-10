@@ -158,6 +158,21 @@ CREATE TABLE `memorial_messages` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `memorial_page_views`
+--
+
+CREATE TABLE `memorial_page_views` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `memorial_page_id` int(10) UNSIGNED NOT NULL,
+  `session_id` varchar(128) DEFAULT NULL,
+  `visitor_ip_hash` varchar(64) DEFAULT NULL,
+  `user_agent` varchar(500) DEFAULT NULL,
+  `viewed_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `memorial_music`
 --
 
@@ -220,7 +235,7 @@ INSERT INTO `memorial_pages` (`id`, `client_user_id`, `pet_name`, `pet_birth_dat
 
 CREATE TABLE `memorial_playlist` (
   `id` int(11) NOT NULL,
-  `client_id` int(11) NOT NULL,
+  `memorial_page_id` int(10) unsigned NOT NULL,
   `type` enum('youtube','mp3') NOT NULL,
   `title` varchar(255) DEFAULT NULL,
   `url` text DEFAULT NULL,
@@ -346,6 +361,13 @@ ALTER TABLE `memorial_messages`
   ADD KEY `idx_messages_memorial` (`memorial_page_id`);
 
 --
+-- Indexes for table `memorial_page_views`
+--
+ALTER TABLE `memorial_page_views`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_page_views_memorial` (`memorial_page_id`);
+
+--
 -- Indexes for table `memorial_music`
 --
 ALTER TABLE `memorial_music`
@@ -364,7 +386,7 @@ ALTER TABLE `memorial_pages`
 --
 ALTER TABLE `memorial_playlist`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_client_id` (`client_id`);
+  ADD KEY `idx_playlist_memorial` (`memorial_page_id`);
 
 --
 -- Indexes for table `memorial_reactions`
@@ -420,6 +442,12 @@ ALTER TABLE `memorial_gallery`
 -- AUTO_INCREMENT for table `memorial_messages`
 --
 ALTER TABLE `memorial_messages`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `memorial_page_views`
+--
+ALTER TABLE `memorial_page_views`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -493,10 +521,22 @@ ALTER TABLE `memorial_messages`
   ADD CONSTRAINT `fk_messages_memorial` FOREIGN KEY (`memorial_page_id`) REFERENCES `memorial_pages` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `memorial_page_views`
+--
+ALTER TABLE `memorial_page_views`
+  ADD CONSTRAINT `fk_page_views_memorial` FOREIGN KEY (`memorial_page_id`) REFERENCES `memorial_pages` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `memorial_music`
 --
 ALTER TABLE `memorial_music`
   ADD CONSTRAINT `fk_music_memorial` FOREIGN KEY (`memorial_page_id`) REFERENCES `memorial_pages` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `memorial_playlist`
+--
+ALTER TABLE `memorial_playlist`
+  ADD CONSTRAINT `fk_playlist_memorial` FOREIGN KEY (`memorial_page_id`) REFERENCES `memorial_pages` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `memorial_pages`

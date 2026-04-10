@@ -36,10 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Change Password - <?= e(APP_NAME) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/site.css">
 </head>
-<body class="bg-light">
+<body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4">
+<div class="container py-4 admin-shell">
     <div class="row justify-content-center">
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm rounded-4">
@@ -59,5 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

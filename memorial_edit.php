@@ -46,11 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $coverPhoto = $memorial['cover_photo'] ?? '';
         $videoFile = $memorial['video_file'] ?? '';
 
-        if (!empty($_FILES['bg_image_portrait']['tmp_name'])) {
-            $bgPortrait = save_optimized_image($_FILES['bg_image_portrait'], $folder, 'bg_portrait');
+        if (!empty($_FILES['bg_portrait']['tmp_name'])) {
+            $bgPortrait = save_optimized_image($_FILES['bg_portrait'], $folder, 'bg_portrait');
         }
-        if (!empty($_FILES['bg_image_landscape']['tmp_name'])) {
-            $bgLandscape = save_optimized_image($_FILES['bg_image_landscape'], $folder, 'bg_landscape');
+        if (!empty($_FILES['bg_landscape']['tmp_name'])) {
+            $bgLandscape = save_optimized_image($_FILES['bg_landscape'], $folder, 'bg_landscape');
         }
         if (!empty($_FILES['cover_photo']['tmp_name'])) {
             $coverPhoto = save_optimized_image($_FILES['cover_photo'], $folder, 'cover');
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $type = trim((string)$type);
                 $title = trim($_POST['music_title'][$i] ?? '');
                 $url = trim($_POST['music_url'][$i] ?? '');
-                $filePath = '';
+                $filePath = trim($_POST['music_existing_file'][$i] ?? '');
         
                 if (!in_array($type, ['youtube', 'mp3'], true)) {
                     continue;
@@ -184,15 +184,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         isset($_FILES['music_file']['tmp_name'][$i]) &&
                         is_uploaded_file($_FILES['music_file']['tmp_name'][$i]);
         
+                    if (!$hasUpload && $filePath !== '') {
+                        if ($title === '') {
+                            $title = pathinfo((string)basename($filePath), PATHINFO_FILENAME);
+                        }
+                        db()->prepare('INSERT INTO memorial_playlist (memorial_page_id, type, title, url, file_path, sort_order, created_at) VALUES (?,?,?,?,?,?,?)')
+                            ->execute([$memorialId, $type, $title, '', $filePath, $musicSort++, now()]);
+                        continue;
+                    }
+
                     if (!$hasUpload) {
                         continue;
                     }
-        
+
                     $tmpName = $_FILES['music_file']['tmp_name'][$i];
                     $originalName = $_FILES['music_file']['name'][$i];
                     $fileSize = (int)($_FILES['music_file']['size'][$i] ?? 0);
                     $fileError = (int)($_FILES['music_file']['error'][$i] ?? UPLOAD_ERR_NO_FILE);
-        
+                    if ($title === '') {
+                        $title = pathinfo((string)$originalName, PATHINFO_FILENAME);
+                    }
+
                     if ($fileError !== UPLOAD_ERR_OK) {
                         continue;
                     }
@@ -206,8 +218,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         continue;
                     }
         
-                    $musicDir = __DIR__ . '/uploads/music/' . $clientGuid . '/';
-                    $musicRelDir = 'uploads/music/' . $clientGuid . '/';
+                    $musicDir = __DIR__ . '/uploads/music/' . $client['client_guid'] . '/';
+                    $musicRelDir = 'uploads/music/' . $client['client_guid'] . '/';
         
                     if (!is_dir($musicDir)) {
                         mkdir($musicDir, 0775, true);
@@ -239,6 +251,12 @@ $timelines = fetch_timeline_items($memorialId);
 $gallery = fetch_gallery_items($memorialId);
 $music = fetch_music_items($memorialId);
 $publicUrl = public_memorial_url($client['client_guid']);
+$qrDownloadName = preg_replace('/[^A-Za-z0-9]+/', '-', trim($client['full_name']));
+$qrDownloadName = trim((string)$qrDownloadName, '-');
+if ($qrDownloadName === '') {
+    $qrDownloadName = 'client';
+}
+$qrDownloadName .= '-furever-memories-qr.png';
 ?>
 <!doctype html>
 <html lang="en">
@@ -247,11 +265,55 @@ $publicUrl = public_memorial_url($client['client_guid']);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Memorial Builder - <?= e(APP_NAME) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>.thumb-preview{width:80px;height:80px;object-fit:cover;border-radius:12px;border:1px solid #ddd}</style>
+    <link rel="stylesheet" href="assets/css/site.css">
+    <style>
+        .thumb-preview{width:80px;height:80px;object-fit:cover;border-radius:12px;border:1px solid #ddd}
+        .builder-preview-frame{
+            margin-top:12px;
+            border:1px solid #d9d2c7;
+            border-radius:20px;
+            background:linear-gradient(180deg,#fbf8f4,#f0e9e0);
+            overflow:hidden;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            box-shadow:0 10px 24px rgba(32,22,12,.08);
+        }
+        .builder-preview-frame--portrait{
+            width:min(100%, 360px);
+            aspect-ratio:9 / 16;
+        }
+        .builder-preview-frame--landscape{
+            width:100%;
+            aspect-ratio:16 / 9;
+        }
+        .builder-preview-frame--cover{
+            width:min(100%, 360px);
+            aspect-ratio:4 / 5;
+        }
+        .builder-preview-image{
+            width:100%;
+            height:100%;
+            object-fit:contain;
+            object-position:center;
+            display:block;
+            background:#f6f1ea;
+        }
+        .builder-preview-frame--timeline{
+            width:min(100%, 240px);
+            aspect-ratio:4 / 3;
+        }
+        .builder-preview-frame.is-empty{
+            display:none;
+        }
+        .music-row .mp3-field .form-text{
+            margin-top:6px;
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4">
+<div class="container py-4 admin-shell">
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
         <div>
             <h1 class="h3 mb-1">Memorial Builder</h1>
@@ -276,24 +338,36 @@ $publicUrl = public_memorial_url($client['client_guid']);
                         <div class="col-md-6"><label class="form-label">Pet Name</label><input name="pet_name" class="form-control" value="<?= e($memorial['pet_name']) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Birth Date</label><input type="date" name="pet_birth_date" class="form-control" value="<?= e($memorial['pet_birth_date']) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Memorial Date</label><input type="date" name="pet_memorial_date" class="form-control" value="<?= e($memorial['pet_memorial_date']) ?>"></div>
-                        <div class="col-12"><label class="form-label">Short Tribute</label><textarea name="short_tribute" class="form-control wysiwyg-editor" rows="3"><?= e($memorial['short_tribute']) ?></textarea></div>
+                        <div class="col-12"><label class="form-label">Short Tribute</label><textarea name="short_tribute" class="form-control wysiwyg-editor" rows="7"><?= e($memorial['short_tribute']) ?></textarea></div>
                         
                         <!-- Portrait Background -->
-                        <label class="form-label">Portrait Background</label>
-                        <input type="file" name="bg_portrait" class="form-control img-preview-input" data-preview="preview_portrait">
-                        <img id="preview_portrait" src="<?= $memorial['bg_portrait'] ?? '' ?>" class="img-fluid rounded mt-2" style="max-height:200px;">
-                        
+                        <div class="col-12">
+                            <label class="form-label">Portrait Background</label>
+                            <input type="file" name="bg_portrait" class="form-control img-preview-input" data-preview="preview_portrait">
+                            <div class="builder-preview-frame builder-preview-frame--portrait">
+                                <img id="preview_portrait" src="<?= !empty($memorial['bg_image_portrait']) ? e(UPLOAD_URL . '/' . $memorial['bg_image_portrait']) : '' ?>" class="builder-preview-image" alt="Portrait background preview">
+                            </div>
+                        </div>
+                         
                         <!-- Landscape Background -->
-                        <label class="form-label mt-3">Landscape Background</label>
-                        <input type="file" name="bg_landscape" class="form-control img-preview-input" data-preview="preview_landscape">
-                        <img id="preview_landscape" src="<?= $memorial['bg_landscape'] ?? '' ?>" class="img-fluid rounded mt-2" style="max-height:200px;">
-                        
+                        <div class="col-12">
+                            <label class="form-label mt-3">Landscape Background</label>
+                            <input type="file" name="bg_landscape" class="form-control img-preview-input" data-preview="preview_landscape">
+                            <div class="builder-preview-frame builder-preview-frame--landscape">
+                                <img id="preview_landscape" src="<?= !empty($memorial['bg_image_landscape']) ? e(UPLOAD_URL . '/' . $memorial['bg_image_landscape']) : '' ?>" class="builder-preview-image" alt="Landscape background preview">
+                            </div>
+                        </div>
+                         
                         <!-- Cover Photo -->
-                        <label class="form-label mt-3">Pet Cover Photo</label>
-                        <input type="file" name="cover_photo" class="form-control img-preview-input" data-preview="preview_cover">
-                        <img id="preview_cover" src="<?= $memorial['cover_photo'] ?? '' ?>" class="img-fluid rounded mt-2" style="max-height:200px;">
+                        <div class="col-12">
+                            <label class="form-label mt-3">Pet Cover Photo</label>
+                            <input type="file" name="cover_photo" class="form-control img-preview-input" data-preview="preview_cover">
+                            <div class="builder-preview-frame builder-preview-frame--cover">
+                                <img id="preview_cover" src="<?= !empty($memorial['cover_photo']) ? e(UPLOAD_URL . '/' . $memorial['cover_photo']) : '' ?>" class="builder-preview-image" alt="Cover photo preview">
+                            </div>
+                        </div>
                         
-                        <div class="col-12"><label class="form-label">Final Letter</label><textarea name="final_letter" class="form-control wysiwyg-editor" rows="6"><?= e($memorial['final_letter']) ?></textarea></div>
+                        <div class="col-12"><label class="form-label">Final Letter</label><textarea name="final_letter" class="form-control wysiwyg-editor" rows="10"><?= e($memorial['final_letter']) ?></textarea></div>
                         <div class="col-md-4"><label class="form-label">Video Mode</label>
                             <select name="video_type" class="form-select">
                                 <option value="none" <?= $memorial['video_type']==='none'?'selected':'' ?>>None</option>
@@ -319,16 +393,31 @@ $publicUrl = public_memorial_url($client['client_guid']);
                                 <div class="row g-3">
                                     <div class="col-md-4"><input name="timeline_title[]" class="form-control" placeholder="Title" value="<?= e($row['title'] ?? '') ?>"></div>
                                     <div class="col-md-3"><input type="date" name="timeline_date[]" class="form-control" value="<?= e($row['event_date'] ?? '') ?>"></div>
-                                    <div class="col-md-5"><input type="file" name="timeline_photo[]" class="form-control" accept="image/*"><input type="hidden" name="timeline_existing_photo[]" value="<?= e($row['photo_path'] ?? '') ?>"></div>
-                                    <div class="col-12"><textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="2" placeholder="Description"><?= e($row['description'] ?? '') ?></textarea></div>
+                                    <div class="col-md-5">
+                                        <div class="d-flex gap-2">
+                                            <input type="file" name="timeline_photo[]" class="form-control timeline-photo-input" accept="image/*">
+                                            <button type="button" class="btn btn-outline-danger timeline-remove-btn">Delete</button>
+                                        </div>
+                                        <input type="hidden" name="timeline_existing_photo[]" value="<?= e($row['photo_path'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="builder-preview-frame builder-preview-frame--timeline timeline-preview-frame<?= empty($row['photo_path']) ? ' is-empty' : '' ?>">
+                                            <img src="<?= !empty($row['photo_path']) ? e(UPLOAD_URL . '/' . $row['photo_path']) : '' ?>" class="builder-preview-image timeline-preview-image" alt="Timeline preview">
+                                        </div>
+                                    </div>
+                                    <div class="col-12"><textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="6" placeholder="Description"><?= e($row['description'] ?? '') ?></textarea></div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
 
                     <hr class="my-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <h2 class="h5 mb-0">Photo Gallery</h2>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="removeSelectedGallery">Delete Selected</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearGallerySelection">Clear Selection</button>
+                        </div>
                     </div>
                     <div id="galleryWrap">
                         <div class="border rounded-4 p-3 mb-3">
@@ -342,13 +431,16 @@ $publicUrl = public_memorial_url($client['client_guid']);
                                     <div class="col-12">
                                         <div class="row g-3">
                                             <?php foreach ($gallery as $row): ?>
-                                                <div class="col-6 col-md-4 col-xl-3">
+                                                <div class="col-6 col-md-4 col-xl-3 gallery-item">
                                                     <div class="border rounded-4 p-2 h-100">
                                                         <input type="hidden" name="gallery_existing_photo[]" value="<?= e($row['photo_path'] ?? '') ?>">
                                                         <img src="<?= e(UPLOAD_URL . '/' . $row['photo_path']) ?>" class="thumb-preview w-100 mb-2" style="height:120px">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input gallery-keep-toggle" type="checkbox" checked>
-                                                            <label class="form-check-label small">Keep this photo</label>
+                                                        <div class="d-flex justify-content-between align-items-center gap-2">
+                                                            <div class="form-check mb-0">
+                                                                <input class="form-check-input gallery-select-toggle" type="checkbox">
+                                                                <label class="form-check-label small">Select</label>
+                                                            </div>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger gallery-remove-btn">Delete</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -365,7 +457,36 @@ $publicUrl = public_memorial_url($client['client_guid']);
                         <h2 class="h5 mb-0">Background Music Playlist</h2>
                         <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addMusic">+ Add Music</button>
                     </div>
-                   <div id="musicWrap"></div>
+                    <div id="musicWrap">
+                        <?php if (!empty($music)): ?>
+                            <?php foreach ($music as $track): ?>
+                                <div class="border rounded-4 p-3 mb-3 music-row">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <select name="music_type[]" class="form-select music-type">
+                                                <option value="youtube" <?= ($track['type'] ?? '') === 'youtube' ? 'selected' : '' ?>>YouTube</option>
+                                                <option value="mp3" <?= ($track['type'] ?? '') === 'mp3' ? 'selected' : '' ?>>MP3 Upload</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-9 d-flex gap-2">
+                                            <input name="music_title[]" class="form-control" placeholder="Track Title" value="<?= e($track['title'] ?? '') ?>">
+                                            <button type="button" class="btn btn-outline-danger music-remove-btn">Delete</button>
+                                        </div>
+                                        <div class="col-md-12 youtube-field<?= ($track['type'] ?? '') === 'mp3' ? ' d-none' : '' ?>">
+                                            <input name="music_url[]" class="form-control" placeholder="YouTube Link" value="<?= e($track['url'] ?? '') ?>">
+                                        </div>
+                                        <div class="col-md-12 mp3-field<?= ($track['type'] ?? '') === 'mp3' ? '' : ' d-none' ?>">
+                                            <input type="file" name="music_file[]" class="form-control" accept=".mp3">
+                                            <input type="hidden" name="music_existing_file[]" value="<?= e($track['file_path'] ?? '') ?>">
+                                            <?php if (!empty($track['file_path'])): ?>
+                                                <div class="form-text music-current-file">Current song: <?= e($track['title'] ?: pathinfo((string)basename($track['file_path']), PATHINFO_FILENAME)) ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
 
                     <button class="btn btn-dark mt-2">Save Memorial Page</button>
                 </div>
@@ -420,6 +541,10 @@ function initEditors(scope = document) {
                 ]
             })
             .then(editor => {
+                const rowCount = parseInt(el.getAttribute('rows') || '4', 10);
+                const minHeight = Math.max(140, rowCount * 28);
+                editor.ui.view.editable.element.style.height = minHeight + 'px';
+                editor.ui.view.editable.element.style.setProperty('min-height', minHeight + 'px', 'important');
                 el.dataset.ckeditorInitialized = '1';
             })
             .catch(error => {
@@ -440,20 +565,33 @@ $('#addTimeline').on('click', function(){
                 <div class="col-md-3">
                     <input type="date" name="timeline_date[]" class="form-control">
                 </div>
-                <div class="col-md-5">
-                    <input type="file" name="timeline_photo[]" class="form-control" accept="image/*">
-                    <input type="hidden" name="timeline_existing_photo[]" value="">
-                </div>
-                <div class="col-12">
-                    <textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="2" placeholder="Description"></textarea>
-                </div>
+        <div class="col-md-5">
+            <div class="d-flex gap-2">
+                <input type="file" name="timeline_photo[]" class="form-control timeline-photo-input" accept="image/*">
+                <button type="button" class="btn btn-outline-danger timeline-remove-btn">Delete</button>
+            </div>
+            <input type="hidden" name="timeline_existing_photo[]" value="">
+        </div>
+        <div class="col-12">
+            <div class="builder-preview-frame builder-preview-frame--timeline timeline-preview-frame is-empty">
+                <img src="" class="builder-preview-image timeline-preview-image" alt="Timeline preview">
             </div>
         </div>
+        <div class="col-12">
+            <textarea name="timeline_description[]" class="form-control wysiwyg-editor" rows="6" placeholder="Description"></textarea>
+        </div>
+    </div>
+</div>
     `;
     $('#timelineWrap').append(html);
 
     const newRow = $('#timelineWrap .timeline-row').last()[0];
     initEditors(newRow);
+    bindTimelinePreview(newRow);
+});
+
+$(document).on('click', '.timeline-remove-btn', function(){
+    $(this).closest('.timeline-row').remove();
 });
 
 $('#addMusic').on('click', function(){
@@ -466,13 +604,21 @@ $('#addMusic').on('click', function(){
                         <option value="mp3">MP3 Upload</option>
                     </select>
                 </div>
+                <div class="col-md-9">
+                    <div class="d-flex gap-2">
+                        <input name="music_title[]" class="form-control" placeholder="Track Title">
+                        <button type="button" class="btn btn-outline-danger music-remove-btn">Delete</button>
+                    </div>
+                </div>
 
-                <div class="col-md-9 youtube-field">
+                <div class="col-md-12 youtube-field">
                     <input name="music_url[]" class="form-control" placeholder="YouTube Link">
                 </div>
 
-                <div class="col-md-9 mp3-field d-none">
+                <div class="col-md-12 mp3-field d-none">
                     <input type="file" name="music_file[]" class="form-control" accept=".mp3">
+                    <input type="hidden" name="music_existing_file[]" value="">
+                    <div class="form-text music-current-file d-none"></div>
                 </div>
             </div>
         </div>
@@ -491,6 +637,32 @@ $(document).on('change', '.music-type', function(){
     }
 });
 
+$(document).on('click', '.music-remove-btn', function(){
+    $(this).closest('.music-row').remove();
+});
+
+$(document).on('change', 'input[name="music_file[]"]', function(){
+    const row = $(this).closest('.music-row');
+    const titleInput = row.find('input[name="music_title[]"]');
+    const helper = row.find('.music-current-file');
+    const file = this.files && this.files[0] ? this.files[0] : null;
+
+    if (!file) {
+        if (helper.length && !helper.text().trim()) {
+            helper.addClass('d-none');
+        }
+        return;
+    }
+
+    if (titleInput.length && !titleInput.val().trim()) {
+        titleInput.val(file.name.replace(/\.[^.]+$/, ''));
+    }
+
+    if (helper.length) {
+        helper.text('Selected file: ' + file.name).removeClass('d-none');
+    }
+});
+
 document.getElementById('downloadQrBtn').addEventListener('click', function () {
     const qrContainer = document.getElementById('qrcode');
     const img = qrContainer.querySelector('img');
@@ -506,24 +678,47 @@ document.getElementById('downloadQrBtn').addEventListener('click', function () {
     if (dataUrl) {
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = 'furever-memories-qr.png';
+        a.download = <?= json_encode($qrDownloadName) ?>;
         document.body.appendChild(a);
         a.click();
         a.remove();
     }
 });
 
-document.querySelectorAll('.gallery-keep-toggle').forEach(function(toggle){
-    toggle.addEventListener('change', function(){
-        const hiddenInput = this.closest('.border').querySelector('input[type="hidden"][name="gallery_existing_photo[]"]');
-        if (!this.checked && hiddenInput) {
-            hiddenInput.dataset.originalValue = hiddenInput.value;
-            hiddenInput.value = '';
-        } else if (this.checked && hiddenInput && hiddenInput.dataset.originalValue !== undefined) {
-            hiddenInput.value = hiddenInput.dataset.originalValue;
+function removeGalleryItems(items) {
+    items.forEach(function(item) {
+        if (item) {
+            item.remove();
         }
     });
+}
+
+document.addEventListener('click', function(event) {
+    const removeBtn = event.target.closest('.gallery-remove-btn');
+    if (removeBtn) {
+        const item = removeBtn.closest('.gallery-item');
+        removeGalleryItems(item ? [item] : []);
+    }
 });
+
+const removeSelectedGalleryBtn = document.getElementById('removeSelectedGallery');
+if (removeSelectedGalleryBtn) {
+    removeSelectedGalleryBtn.addEventListener('click', function() {
+        const selectedItems = Array.from(document.querySelectorAll('.gallery-select-toggle:checked'))
+            .map((checkbox) => checkbox.closest('.gallery-item'))
+            .filter(Boolean);
+        removeGalleryItems(selectedItems);
+    });
+}
+
+const clearGallerySelectionBtn = document.getElementById('clearGallerySelection');
+if (clearGallerySelectionBtn) {
+    clearGallerySelectionBtn.addEventListener('click', function() {
+        document.querySelectorAll('.gallery-select-toggle').forEach(function(checkbox) {
+            checkbox.checked = false;
+        });
+    });
+}
 
 
 
@@ -541,6 +736,45 @@ document.querySelectorAll('.img-preview-input').forEach(input => {
         }
     });
 });
+
+function bindTimelinePreview(scope = document) {
+    scope.querySelectorAll('.timeline-photo-input').forEach((input) => {
+        if (input.dataset.previewBound === '1') return;
+        input.dataset.previewBound = '1';
+
+        input.addEventListener('change', function(e) {
+            const row = e.target.closest('.timeline-row');
+            if (!row) return;
+
+            const frame = row.querySelector('.timeline-preview-frame');
+            const preview = row.querySelector('.timeline-preview-image');
+            const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+
+            if (!frame || !preview) return;
+
+            if (!file) {
+                const hiddenInput = row.querySelector('input[name=\"timeline_existing_photo[]\"]');
+                if (hiddenInput && hiddenInput.value) {
+                    preview.src = <?= json_encode(rtrim(UPLOAD_URL, '/') . '/') ?> + hiddenInput.value.replace(/^\/+/, '');
+                    frame.classList.remove('is-empty');
+                } else {
+                    preview.src = '';
+                    frame.classList.add('is-empty');
+                }
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                preview.src = ev.target.result;
+                frame.classList.remove('is-empty');
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+}
+
+bindTimelinePreview();
 
 
 

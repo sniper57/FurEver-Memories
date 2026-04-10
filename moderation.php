@@ -14,6 +14,7 @@ if (!$client || $client['role'] !== 'client') exit('Client record not found.');
 $memorial = fetch_memorial_by_client_id((int)$client['id']);
 if (!$memorial) exit('Memorial not found.');
 $memorialId = (int)$memorial['id'];
+$builderUrl = 'memorial_edit.php' . (is_admin() ? '?clientguid=' . urlencode($client['client_guid']) : '');
 $error = '';
 $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -43,23 +44,36 @@ $messages = fetch_messages($memorialId, false);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Moderate Messages - <?= e(APP_NAME) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/site.css">
 </head>
-<body class="bg-light">
+<body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4">
+<div class="container py-4 admin-shell">
     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
     <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body p-4">
-            <h1 class="h4 mb-3">Message Moderation</h1>
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                <h1 class="h4 mb-0">Message Moderation</h1>
+                <a href="<?= e($builderUrl) ?>" class="btn btn-outline-secondary btn-sm">Back to Memorial Builder</a>
+            </div>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Visitor</th><th>Message</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Visitor</th><th>Photo</th><th>Message</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
                     <tbody>
                     <?php foreach ($messages as $row): ?>
                         <tr>
                             <td><?= e($row['visitor_name']) ?></td>
-                            <td><?= e(mb_strimwidth($row['message'], 0, 80, '...')) ?></td>
+                            <td>
+                                <?php if (!empty($row['visitor_photo'])): ?>
+                                    <a href="<?= e(UPLOAD_URL . '/' . $row['visitor_photo']) ?>" target="_blank" rel="noopener noreferrer">
+                                        <img src="<?= e(UPLOAD_URL . '/' . $row['visitor_photo']) ?>" alt="<?= e($row['visitor_name']) ?>" style="width:72px;height:72px;object-fit:cover;border-radius:14px;border:1px solid #ddd;">
+                                    </a>
+                                <?php else: ?>
+                                    <span class="text-muted small">No photo</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="min-width:260px; white-space:normal;"><?= nl2br(e($row['message'])) ?></td>
                             <td><?= !empty($row['is_approved']) ? 'Approved' : 'Pending' ?></td>
                             <td><?= e($row['created_at']) ?></td>
                             <td class="text-nowrap">
@@ -76,5 +90,6 @@ $messages = fetch_messages($memorialId, false);
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

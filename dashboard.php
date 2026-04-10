@@ -9,6 +9,12 @@ if (is_admin() && isset($_GET['clientguid']) && $_GET['clientguid'] !== '') {
     $clientGuid = $_GET['clientguid'];
 }
 $link = $clientGuid ? public_memorial_url($clientGuid) : '';
+$qrDownloadName = preg_replace('/[^A-Za-z0-9]+/', '-', trim((string)($user['full_name'] ?? 'client')));
+$qrDownloadName = trim((string)$qrDownloadName, '-');
+if ($qrDownloadName === '') {
+    $qrDownloadName = 'client';
+}
+$qrDownloadName .= '-furever-memories-qr.png';
 $success = flash_get('success');
 $warning = flash_get('warning');
 ?>
@@ -19,10 +25,11 @@ $warning = flash_get('warning');
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard - <?= e(APP_NAME) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/site.css">
 </head>
-<body class="bg-light">
+<body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4">
+<div class="container py-4 admin-shell">
     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
     <?php if ($warning): ?><div class="alert alert-warning"><?= e($warning) ?></div><?php endif; ?>
     <div class="row g-4">
@@ -48,10 +55,13 @@ $warning = flash_get('warning');
                         </div>
                         <div class="row g-3 align-items-center">
                             <div class="col-md-4">
-                                <img src="<?= e(qrcode_data_uri($link)) ?>" class="img-fluid rounded-3 border" alt="QR code">
+                                <img src="<?= e(qrcode_data_uri($link)) ?>" class="img-fluid rounded-3 border" alt="QR code" id="dashboardQrImage">
                             </div>
                             <div class="col-md-8">
-                                <a href="<?= e($link) ?>" target="_blank" class="btn btn-dark">Open Public Page</a>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a href="<?= e($link) ?>" target="_blank" class="btn btn-dark">Open Public Page</a>
+                                    <button type="button" class="btn btn-success" id="downloadQrBtn">Download QR Code</button>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -64,7 +74,7 @@ $warning = flash_get('warning');
                     <h2 class="h5">Quick Actions</h2>
                     <div class="d-grid gap-2">
                         <?php if (is_admin()): ?><a href="admin_clients.php" class="btn btn-outline-dark">Manage Clients</a><?php endif; ?>
-                        <a href="memorial_edit.php" class="btn btn-outline-dark">Edit Memorial Page</a>
+                        <a href="memorial_edit.php<?= (is_admin() && $clientGuid !== '') ? '?clientguid=' . urlencode($clientGuid) : '' ?>" class="btn btn-outline-dark">Edit Memorial Page</a>
                         <?php if (is_client()): ?><a href="client_profile.php" class="btn btn-outline-dark">Update Profile</a><?php endif; ?>
                     </div>
                 </div>
@@ -72,5 +82,23 @@ $warning = flash_get('warning');
         </div>
     </div>
 </div>
+<?php if ($link): ?>
+<script>
+document.getElementById('downloadQrBtn').addEventListener('click', function () {
+    const qrImage = document.getElementById('dashboardQrImage');
+    if (!qrImage || !qrImage.src) {
+        return;
+    }
+
+    const a = document.createElement('a');
+    a.href = qrImage.src;
+    a.download = <?= json_encode($qrDownloadName) ?>;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+});
+</script>
+<?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

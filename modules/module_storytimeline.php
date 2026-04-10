@@ -14,9 +14,9 @@
                         <?php endif; ?>
                     </div>
                     <div class="col-md-8">
-                        <div class="small text-uppercase text-muted mb-2"><?= e($item['event_date']) ?></div>
+                        <div class="small text-uppercase text-muted mb-2"><?= e(format_display_date($item['event_date'])) ?></div>
                         <h3 class="h4"><?= e($item['title']) ?></h3>
-                        <p class="mb-0 text-secondary"><?= nl2br(e($item['description'])) ?></p>
+                        <div class="mb-0 text-secondary"><?= render_rich_text($item['description']) ?></div>
                     </div>
                 </div>
             <?php endforeach; ?>
