@@ -4,13 +4,15 @@ send_security_headers();
 $token = trim($_GET['token'] ?? '');
 $status = 'invalid';
 $message = 'This verification link is invalid or expired.';
+$ctaHref = 'login.php';
+$ctaLabel = 'Go to Login';
 if ($token !== '') {
     $record = verify_email_token($token);
     if ($record) {
         mark_email_verified((int)$record['user_id'], (int)$record['id']);
         log_audit('email.verify', 'Email verification completed.', 'user', (int)$record['user_id']);
         $status = 'success';
-        $message = 'Email verified successfully. You may now log in.';
+        $message = 'Email verified successfully. You may now sign in and start building your memorial in private preview mode.';
     }
 }
 ?>
@@ -29,7 +31,7 @@ if ($token !== '') {
             <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4 text-center">
                 <h1 class="h3 mb-3">Email Verification</h1>
                 <div class="alert <?= $status === 'success' ? 'alert-success' : 'alert-danger' ?>"><?= e($message) ?></div>
-                <a href="login.php" class="btn btn-dark">Go to Login</a>
+                <a href="<?= e($ctaHref) ?>" class="btn btn-dark"><?= e($ctaLabel) ?></a>
             </div></div>
         </div>
     </div>

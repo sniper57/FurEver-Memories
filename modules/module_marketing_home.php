@@ -20,7 +20,7 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                     <li class="nav-item"><a class="nav-link" href="#why-furever">Why FurEver</a></li>
                     <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                     <li class="nav-item"><button type="button" class="btn btn-outline-dark rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#marketingLoginModal">Sign In</button></li>
-                    <li class="nav-item"><a class="btn btn-dark rounded-pill px-3" href="login.php">Create a Memorial</a></li>
+                    <li class="nav-item"><a class="btn btn-dark rounded-pill px-3" href="register.php">Create a Memorial</a></li>
                 </ul>
             </div>
         </div>
@@ -36,7 +36,7 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                         <h1 class="marketing-hero-title">Celebrate a life well loved with a memorial made for modern pet families.</h1>
                         <p class="marketing-hero-text"><?= e($marketingTitle) ?> helps pet parents preserve photos, videos, stories, tribute playlists, QR memory galleries, and printed keepsakes in one warm and beautiful experience.</p>
                         <div class="marketing-hero-actions">
-                            <a href="login.php" class="btn btn-dark btn-lg rounded-pill px-4">Create a Memorial Page</a>
+                            <a href="register.php" class="btn btn-dark btn-lg rounded-pill px-4">Create a Memorial Page</a>
                             <a href="#how-it-works" class="btn btn-outline-dark btn-lg rounded-pill px-4">See How It Works</a>
                         </div>
                         <div class="marketing-pill-row">
@@ -296,7 +296,7 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                 <h2>Forever in our hearts</h2>
                 <p>Create a memorial that feels modern, deeply personal, and beautiful enough to share with the people who loved them most.</p>
                 <div class="marketing-hero-actions justify-content-center">
-                    <a href="login.php" class="btn btn-dark btn-lg rounded-pill px-4">Start Your Memorial</a>
+                    <a href="register.php" class="btn btn-dark btn-lg rounded-pill px-4">Start Your Memorial</a>
                     <a href="#how-it-works" class="btn btn-outline-dark btn-lg rounded-pill px-4">Explore Features</a>
                 </div>
             </div>
@@ -317,7 +317,7 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                 </div>
             </div>
             <div class="col-lg-4 text-lg-end">
-                <a href="login.php" class="btn btn-dark rounded-pill px-4">Create a Memorial Page</a>
+                <a href="register.php" class="btn btn-dark rounded-pill px-4">Create a Memorial Page</a>
             </div>
         </div>
     </div>
@@ -368,7 +368,14 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                                     </div>
                                     <button class="btn login-submit-btn w-100">Login</button>
                                 </form>
+                                <div class="text-center text-muted small my-3">or continue with</div>
+                                <div class="d-grid gap-2">
+                                    <a href="social_auth.php?provider=google" class="btn btn-outline-dark rounded-pill">Continue with Google</a>
+                                    <a href="social_auth.php?provider=facebook" class="btn btn-outline-dark rounded-pill">Continue with Facebook</a>
+                                </div>
                                 <div class="login-form-footer">
+                                    <a href="register.php" class="text-decoration-none">Create a memorial account</a>
+                                    <span class="mx-2">&bull;</span>
                                     <a href="login.php" class="text-decoration-none">Open full login page</a>
                                 </div>
                             </div>

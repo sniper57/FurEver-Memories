@@ -27,6 +27,7 @@ $pageBuilderUrl = 'memorial_edit.php' . ((is_admin() && $requestedClientGuid !==
                 <?php endif; ?>
                 <?php if (is_client()): ?>
                     <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'client_profile.php' ? ' active' : '' ?>" href="client_profile.php">My Profile</a></li>
+                    <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'subscription.php' ? ' active' : '' ?>" href="subscription.php">Billing &amp; Access</a></li>
                 <?php endif; ?>
                 <li class="nav-item"><a class="nav-link admin-nav-link<?= in_array($currentPage, ['memorial_edit.php', 'moderation.php'], true) ? ' active' : '' ?>" href="<?= e($pageBuilderUrl) ?>">Page Builder</a></li>
                 <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'change_password.php' ? ' active' : '' ?>" href="change_password.php">Change Password</a></li>

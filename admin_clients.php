@@ -37,9 +37,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $clientId = (int)db()->lastInsertId();
             upsert_memorial($clientId, [
-                'pet_name' => '', 'pet_birth_date' => null, 'pet_memorial_date' => null, 'short_tribute' => '', 'final_letter' => '',
-                'video_type' => 'none', 'video_url' => '', 'video_file' => '', 'bg_image_portrait' => '', 'bg_image_landscape' => '',
-                'cover_photo' => '', 'share_footer_text' => 'Created with love through FurEver Memories', 'youtube_embed_url' => '', 'video_max_mb' => DEFAULT_VIDEO_MAX_MB,
+                'pet_name' => '',
+                'pet_birth_date' => null,
+                'pet_memorial_date' => null,
+                'short_tribute' => '',
+                'final_letter' => '',
+                'video_type' => 'none',
+                'video_url' => '',
+                'video_file' => '',
+                'bg_image_portrait' => '',
+                'bg_image_landscape' => '',
+                'cover_photo' => '',
+                'share_footer_text' => 'Created with love through FurEver Memories',
+                'youtube_embed_url' => '',
+                'video_max_mb' => DEFAULT_VIDEO_MAX_MB,
             ]);
             $issued = issue_email_verification_token($clientId, $email);
             $verificationLink = $issued['url'];
@@ -60,6 +71,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sent = send_verification_email($user, $verificationLink);
             log_audit('client.verification.resend', 'Verification link resent by administrator.', 'user', $clientId, ['sent' => $sent]);
             $success = $sent ? 'Verification email resent.' : 'Mail sending failed on this server. Manual verification link generated below.';
+        }
+
+        if ($action === 'approve_payment') {
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            approve_subscription_payment($paymentId, (int)current_user()['id'], trim((string)($_POST['review_notes'] ?? '')));
+            log_audit('subscription.payment.approve', 'Administrator approved a subscription payment.', 'subscription_payment', $paymentId);
+            $success = 'Payment approved. Public sharing is now enabled through the active subscription.';
+        }
+
+        if ($action === 'reject_payment') {
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            reject_subscription_payment($paymentId, (int)current_user()['id'], trim((string)($_POST['review_notes'] ?? '')));
+            log_audit('subscription.payment.reject', 'Administrator rejected a subscription payment.', 'subscription_payment', $paymentId);
+            $success = 'Payment rejected. The client can submit a new payment proof.';
+        }
+
+        if ($action === 'enable_public_override') {
+            $clientId = (int)($_POST['client_id'] ?? 0);
+            set_memorial_public_override($clientId, true, (int)current_user()['id'], trim((string)($_POST['override_note'] ?? 'Manual admin approval')));
+            log_audit('memorial.public_override.enable', 'Administrator enabled manual public access override.', 'user', $clientId);
+            $success = 'Manual public access override enabled.';
+        }
+
+        if ($action === 'disable_public_override') {
+            $clientId = (int)($_POST['client_id'] ?? 0);
+            set_memorial_public_override($clientId, false, (int)current_user()['id']);
+            log_audit('memorial.public_override.disable', 'Administrator disabled manual public access override.', 'user', $clientId);
+            $success = 'Manual public access override disabled.';
         }
     } catch (Throwable $e) {
         $error = $e->getMessage();
@@ -107,9 +146,15 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
                     <h2 class="h4 mb-3">Client List</h2>
                     <div class="table-responsive">
                         <table class="table align-middle">
-                            <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>GUID</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>Name</th><th>Email</th><th>Verification</th><th>Access</th><th>Billing</th><th>Actions</th></tr></thead>
                             <tbody>
                             <?php foreach ($clients as $client): ?>
+                                <?php
+                                $clientMemorial = fetch_memorial_by_client_id((int)$client['id']);
+                                $clientAccess = memorial_public_access_summary((int)$client['id'], $clientMemorial ?: null);
+                                $latestSubscription = fetch_latest_subscription_for_user((int)$client['id']);
+                                $latestPayment = fetch_latest_payment_for_user((int)$client['id']);
+                                ?>
                                 <tr>
                                     <td><?= e($client['full_name']) ?></td>
                                     <td><?= e($client['email']) ?></td>
@@ -120,10 +165,60 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
                                             <span class="badge text-bg-warning">Pending</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><small><?= e($client['client_guid']) ?></small></td>
+                                    <td>
+                                        <div><span class="badge <?= e(!empty($clientAccess['is_public']) ? 'text-bg-success' : 'text-bg-secondary') ?>"><?= e($clientAccess['label']) ?></span></div>
+                                        <div class="small text-muted mt-1"><?= e($client['client_guid']) ?></div>
+                                    </td>
+                                    <td>
+                                        <?php if ($latestSubscription): ?>
+                                            <div><span class="badge <?= e(subscription_status_badge_class((string)$latestSubscription['status'])) ?>"><?= e(ucwords(str_replace('_', ' ', (string)$latestSubscription['status']))) ?></span></div>
+                                            <div class="small text-muted mt-1"><?= e($latestSubscription['plan_name'] ?? 'Plan') ?> &bull; PHP <?= e(number_format((float)($latestSubscription['amount'] ?? 0), 2)) ?></div>
+                                        <?php else: ?>
+                                            <span class="badge text-bg-light">No plan yet</span>
+                                        <?php endif; ?>
+                                        <?php if ($latestPayment): ?>
+                                            <div class="small text-muted mt-1"><?= e(ucfirst(str_replace('_', ' ', (string)$latestPayment['payment_method']))) ?> &bull; Ref <?= e($latestPayment['reference_number']) ?></div>
+                                            <?php if (!empty($latestPayment['proof_path'])): ?>
+                                                <div class="small mt-1"><a href="<?= e(UPLOAD_URL . '/' . ltrim((string)$latestPayment['proof_path'], '/')) ?>" target="_blank" rel="noopener noreferrer">View payment proof</a></div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-nowrap">
-                                        <a class="btn btn-sm btn-outline-dark" href="memorial_edit.php?clientguid=<?= e($client['client_guid']) ?>">Configure</a>
-                                        <a class="btn btn-sm btn-outline-secondary" target="_blank" href="<?= e(public_memorial_url($client['client_guid'])) ?>">View</a>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <a class="btn btn-sm btn-outline-dark" href="memorial_edit.php?clientguid=<?= e($client['client_guid']) ?>">Configure</a>
+                                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="<?= e(public_memorial_url($client['client_guid'])) ?>">View</a>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2 mt-2">
+                                            <?php if ($latestPayment && ($latestPayment['status'] ?? '') === 'pending'): ?>
+                                                <form method="post" class="d-inline">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="action" value="approve_payment">
+                                                    <input type="hidden" name="payment_id" value="<?= (int)$latestPayment['id'] ?>">
+                                                    <button class="btn btn-sm btn-success">Approve Payment</button>
+                                                </form>
+                                                <form method="post" class="d-inline">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="action" value="reject_payment">
+                                                    <input type="hidden" name="payment_id" value="<?= (int)$latestPayment['id'] ?>">
+                                                    <button class="btn btn-sm btn-outline-danger">Reject Payment</button>
+                                                </form>
+                                            <?php endif; ?>
+                                            <?php if (empty($clientMemorial['public_access_override'])): ?>
+                                                <form method="post" class="d-inline">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="action" value="enable_public_override">
+                                                    <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
+                                                    <button class="btn btn-sm btn-outline-primary">Enable Public</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <form method="post" class="d-inline">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="action" value="disable_public_override">
+                                                    <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
+                                                    <button class="btn btn-sm btn-outline-secondary">Disable Public Override</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
                                         <?php if (empty($client['is_email_verified'])): ?>
                                             <form method="post" class="d-inline">
                                                 <?= csrf_input() ?>

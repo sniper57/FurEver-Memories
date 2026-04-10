@@ -555,6 +555,108 @@ ALTER TABLE `memorial_reactions`
 --
 ALTER TABLE `memorial_timelines`
   ADD CONSTRAINT `fk_timeline_memorial` FOREIGN KEY (`memorial_page_id`) REFERENCES `memorial_pages` (`id`) ON DELETE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- Subscription, social sign-in, and access-control additions
+--
+
+ALTER TABLE `users`
+  ADD COLUMN `auth_provider` varchar(32) NOT NULL DEFAULT 'password' AFTER `password_hash`,
+  ADD COLUMN `social_provider_user_id` varchar(191) DEFAULT NULL AFTER `auth_provider`,
+  ADD KEY `idx_users_social_identity` (`auth_provider`,`social_provider_user_id`);
+
+ALTER TABLE `memorial_pages`
+  ADD COLUMN `public_access_override` tinyint(1) NOT NULL DEFAULT 0 AFTER `video_max_mb`,
+  ADD COLUMN `public_access_override_note` varchar(255) DEFAULT NULL AFTER `public_access_override`,
+  ADD COLUMN `public_access_enabled_at` datetime DEFAULT NULL AFTER `public_access_override_note`,
+  ADD COLUMN `public_access_enabled_by_user_id` int(10) UNSIGNED DEFAULT NULL AFTER `public_access_enabled_at`,
+  ADD KEY `idx_memorial_public_override` (`public_access_override`),
+  ADD KEY `idx_memorial_public_enabled_by` (`public_access_enabled_by_user_id`);
+
+CREATE TABLE `subscription_plans` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `slug` varchar(80) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `billing_cycle` varchar(40) NOT NULL,
+  `duration_days` int(11) NOT NULL,
+  `price_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(10) NOT NULL DEFAULT 'PHP',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` int(11) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_subscription_plans_slug` (`slug`),
+  KEY `idx_subscription_plans_active` (`is_active`,`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `subscription_plans` (`id`, `slug`, `name`, `description`, `billing_cycle`, `duration_days`, `price_amount`, `currency`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES
+(1, 'monthly-memory', 'Monthly Memory Access', 'Best for families who want to launch a memorial quickly and keep sharing month to month.', 'monthly', 30, 299.00, 'PHP', 1, 1, '2026-04-10 18:30:00', '2026-04-10 18:30:00'),
+(2, 'quarterly-remembrance', 'Quarterly Remembrance', 'A longer sharing window for anniversaries, healing journeys, and extended family visits.', 'quarterly', 90, 799.00, 'PHP', 1, 2, '2026-04-10 18:30:00', '2026-04-10 18:30:00'),
+(3, 'annual-legacy', 'Annual Legacy', 'The premium option for a full year of public access and remembrance sharing.', 'annual', 365, 2499.00, 'PHP', 1, 3, '2026-04-10 18:30:00', '2026-04-10 18:30:00');
+
+CREATE TABLE `client_subscriptions` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `plan_id` int(10) UNSIGNED NOT NULL,
+  `status` enum('pending_payment','pending_review','active','rejected','expired','cancelled') NOT NULL DEFAULT 'pending_payment',
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(10) NOT NULL DEFAULT 'PHP',
+  `payment_method` varchar(50) DEFAULT NULL,
+  `starts_at` datetime DEFAULT NULL,
+  `ends_at` datetime DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `approved_by_user_id` int(10) UNSIGNED DEFAULT NULL,
+  `review_notes` text DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_client_subscriptions_user` (`user_id`,`status`),
+  KEY `idx_client_subscriptions_plan` (`plan_id`),
+  KEY `idx_client_subscriptions_approver` (`approved_by_user_id`),
+  CONSTRAINT `fk_client_subscriptions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_client_subscriptions_plan` FOREIGN KEY (`plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_client_subscriptions_approver` FOREIGN KEY (`approved_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `subscription_payments` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `subscription_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `payment_method` varchar(50) NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(10) NOT NULL DEFAULT 'PHP',
+  `reference_number` varchar(150) NOT NULL,
+  `payer_name` varchar(150) NOT NULL,
+  `payer_contact` varchar(80) DEFAULT NULL,
+  `proof_path` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `gateway_provider` varchar(50) DEFAULT NULL,
+  `gateway_order_id` varchar(120) DEFAULT NULL,
+  `gateway_capture_id` varchar(120) DEFAULT NULL,
+  `gateway_payer_id` varchar(120) DEFAULT NULL,
+  `raw_response_json` longtext DEFAULT NULL,
+  `reviewed_by_user_id` int(10) UNSIGNED DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `review_notes` text DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_subscription_payments_subscription` (`subscription_id`),
+  KEY `idx_subscription_payments_user` (`user_id`,`status`),
+  KEY `idx_subscription_payments_reviewer` (`reviewed_by_user_id`),
+  UNIQUE KEY `uq_subscription_payments_gateway_order` (`gateway_order_id`),
+  CONSTRAINT `fk_subscription_payments_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `client_subscriptions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_subscription_payments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_subscription_payments_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `memorial_pages`
+  ADD CONSTRAINT `fk_memorial_public_enabled_by` FOREIGN KEY (`public_access_enabled_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

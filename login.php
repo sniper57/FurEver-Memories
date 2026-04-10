@@ -94,7 +94,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <button class="btn login-submit-btn w-100">Login</button>
                             </form>
+                            <div class="text-center text-muted small my-3">or continue with</div>
+                            <div class="d-grid gap-2">
+                                <a href="social_auth.php?provider=google" class="btn btn-outline-dark rounded-pill">Continue with Google</a>
+                                <a href="social_auth.php?provider=facebook" class="btn btn-outline-dark rounded-pill">Continue with Facebook</a>
+                            </div>
                             <div class="login-form-footer">
+                                <a href="register.php" class="text-decoration-none">Create a memorial account</a>
+                                <span class="mx-2">•</span>
                                 <a href="index.php" class="text-decoration-none">Back to homepage</a>
                             </div>
                         </div>

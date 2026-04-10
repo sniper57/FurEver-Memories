@@ -164,6 +164,322 @@ function public_memorial_url(string $clientGuid): string
     return rtrim(BASE_URL, '/') . '/c/' . rawurlencode($clientGuid);
 }
 
+function social_provider_settings(string $provider): array
+{
+    $provider = strtolower(trim($provider));
+
+    if ($provider === 'google') {
+        $clientId = defined('GOOGLE_OAUTH_CLIENT_ID') ? trim((string)GOOGLE_OAUTH_CLIENT_ID) : '';
+        $clientSecret = defined('GOOGLE_OAUTH_CLIENT_SECRET') ? trim((string)GOOGLE_OAUTH_CLIENT_SECRET) : '';
+        return [
+            'provider' => 'google',
+            'label' => 'Google',
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'configured' => ($clientId !== '' && $clientSecret !== ''),
+            'auth_url' => 'https://accounts.google.com/o/oauth2/v2/auth',
+            'token_url' => 'https://oauth2.googleapis.com/token',
+            'userinfo_url' => 'https://openidconnect.googleapis.com/v1/userinfo',
+            'scope' => 'openid email profile',
+            'redirect_uri' => rtrim(BASE_URL, '/') . '/social_auth.php?provider=google',
+        ];
+    }
+
+    if ($provider === 'facebook') {
+        $clientId = defined('FACEBOOK_APP_ID') ? trim((string)FACEBOOK_APP_ID) : '';
+        $clientSecret = defined('FACEBOOK_APP_SECRET') ? trim((string)FACEBOOK_APP_SECRET) : '';
+        $graphVersion = defined('FACEBOOK_GRAPH_VERSION') ? trim((string)FACEBOOK_GRAPH_VERSION) : 'v20.0';
+        return [
+            'provider' => 'facebook',
+            'label' => 'Facebook',
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'configured' => ($clientId !== '' && $clientSecret !== ''),
+            'auth_url' => 'https://www.facebook.com/' . $graphVersion . '/dialog/oauth',
+            'token_url' => 'https://graph.facebook.com/' . $graphVersion . '/oauth/access_token',
+            'userinfo_url' => 'https://graph.facebook.com/' . $graphVersion . '/me?fields=id,name,email,picture',
+            'scope' => 'email,public_profile',
+            'redirect_uri' => rtrim(BASE_URL, '/') . '/social_auth.php?provider=facebook',
+        ];
+    }
+
+    return [
+        'provider' => $provider,
+        'label' => ucfirst($provider),
+        'client_id' => '',
+        'client_secret' => '',
+        'configured' => false,
+        'auth_url' => '',
+        'token_url' => '',
+        'userinfo_url' => '',
+        'scope' => '',
+        'redirect_uri' => '',
+    ];
+}
+
+function social_provider_enabled(string $provider): bool
+{
+    return !empty(social_provider_settings($provider)['configured']);
+}
+
+function paypal_settings(): array
+{
+    $clientId = defined('PAYPAL_CLIENT_ID') ? trim((string)PAYPAL_CLIENT_ID) : '';
+    $clientSecret = defined('PAYPAL_CLIENT_SECRET') ? trim((string)PAYPAL_CLIENT_SECRET) : '';
+    $mode = defined('PAYPAL_MODE') ? strtolower(trim((string)PAYPAL_MODE)) : 'sandbox';
+    if (!in_array($mode, ['sandbox', 'live'], true)) {
+        $mode = 'sandbox';
+    }
+
+    return [
+        'client_id' => $clientId,
+        'client_secret' => $clientSecret,
+        'mode' => $mode,
+        'configured' => ($clientId !== '' && $clientSecret !== ''),
+        'base_url' => $mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com',
+    ];
+}
+
+function paypal_is_configured(): bool
+{
+    return !empty(paypal_settings()['configured']);
+}
+
+function paypal_http_request(string $method, string $url, array $headers = [], ?array $payload = null): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('PayPal checkout requires the PHP cURL extension.');
+    }
+
+    $ch = curl_init($url);
+    $normalizedHeaders = array_merge(['Accept: application/json'], $headers);
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CUSTOMREQUEST => strtoupper($method),
+        CURLOPT_HTTPHEADER => $normalizedHeaders,
+    ]);
+
+    if ($payload !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    $responseBody = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        throw new RuntimeException('PayPal connection error: ' . $curlError);
+    }
+
+    $decoded = json_decode((string)$responseBody, true);
+    if ($httpCode < 200 || $httpCode >= 300) {
+        $message = $decoded['message'] ?? $decoded['error_description'] ?? 'PayPal request failed.';
+        throw new RuntimeException('PayPal error: ' . $message);
+    }
+
+    return is_array($decoded) ? $decoded : [];
+}
+
+function paypal_access_token(): string
+{
+    $settings = paypal_settings();
+    if (empty($settings['configured'])) {
+        throw new RuntimeException('PayPal checkout is not configured on this environment.');
+    }
+
+    $ch = curl_init($settings['base_url'] . '/v1/oauth2/token');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_POST => true,
+        CURLOPT_USERPWD => $settings['client_id'] . ':' . $settings['client_secret'],
+        CURLOPT_POSTFIELDS => 'grant_type=client_credentials',
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'Accept-Language: en_US',
+            'Content-Type: application/x-www-form-urlencoded',
+        ],
+    ]);
+
+    $responseBody = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        throw new RuntimeException('Unable to reach PayPal: ' . $curlError);
+    }
+
+    $decoded = json_decode((string)$responseBody, true);
+    if ($httpCode < 200 || $httpCode >= 300 || empty($decoded['access_token'])) {
+        $message = $decoded['error_description'] ?? $decoded['error'] ?? 'Unable to authenticate with PayPal.';
+        throw new RuntimeException('PayPal authentication failed: ' . $message);
+    }
+
+    return (string)$decoded['access_token'];
+}
+
+function paypal_request(string $method, string $path, ?array $payload = null): array
+{
+    $settings = paypal_settings();
+    $token = paypal_access_token();
+
+    $headers = [
+        'Authorization: Bearer ' . $token,
+    ];
+
+    if ($payload !== null) {
+        $headers[] = 'Content-Type: application/json';
+    }
+
+    return paypal_http_request($method, $settings['base_url'] . $path, $headers, $payload);
+}
+
+function paypal_find_link(array $response, string $rel): string
+{
+    foreach (($response['links'] ?? []) as $link) {
+        if (($link['rel'] ?? '') === $rel && !empty($link['href'])) {
+            return (string)$link['href'];
+        }
+    }
+
+    return '';
+}
+
+function issue_social_auth_state(string $provider): string
+{
+    $key = '_oauth_state_' . strtolower(trim($provider));
+    $state = random_token(24);
+    $_SESSION[$key] = [
+        'value' => $state,
+        'issued_at' => time(),
+    ];
+    return $state;
+}
+
+function verify_social_auth_state(string $provider, string $state, int $ttlSeconds = 900): bool
+{
+    $key = '_oauth_state_' . strtolower(trim($provider));
+    $sessionState = $_SESSION[$key]['value'] ?? '';
+    $issuedAt = (int)($_SESSION[$key]['issued_at'] ?? 0);
+    unset($_SESSION[$key]);
+
+    if ($state === '' || $sessionState === '' || !hash_equals($sessionState, $state)) {
+        return false;
+    }
+
+    return $issuedAt > 0 && (time() - $issuedAt) <= $ttlSeconds;
+}
+
+function payment_method_options(): array
+{
+    return [
+        'paypal' => 'PayPal',
+        'gcash' => 'GCash',
+        'maya' => 'Maya',
+        'bank_transfer' => 'Bank Transfer',
+    ];
+}
+
+function payment_method_instructions(): array
+{
+    return [
+        'paypal' => [
+            'label' => 'PayPal',
+            'headline' => 'Pay online with PayPal',
+            'details' => 'Use PayPal for instant checkout. Once payment is captured successfully, your memorial subscription can activate automatically.',
+        ],
+        'gcash' => [
+            'label' => 'GCash',
+            'headline' => 'Pay with GCash',
+            'details' => defined('GCASH_PAYMENT_LABEL') && trim((string)GCASH_PAYMENT_LABEL) !== ''
+                ? trim((string)GCASH_PAYMENT_LABEL)
+                : 'Use your FurEver Memories GCash receiving details here.',
+        ],
+        'maya' => [
+            'label' => 'Maya',
+            'headline' => 'Pay with Maya',
+            'details' => defined('MAYA_PAYMENT_LABEL') && trim((string)MAYA_PAYMENT_LABEL) !== ''
+                ? trim((string)MAYA_PAYMENT_LABEL)
+                : 'Use your FurEver Memories Maya receiving details here.',
+        ],
+        'bank_transfer' => [
+            'label' => 'Bank Transfer',
+            'headline' => 'Pay by Bank Transfer',
+            'details' => defined('BANK_TRANSFER_LABEL') && trim((string)BANK_TRANSFER_LABEL) !== ''
+                ? trim((string)BANK_TRANSFER_LABEL)
+                : 'Use your FurEver Memories bank transfer instructions here.',
+        ],
+    ];
+}
+
+function default_memorial_payload(): array
+{
+    return [
+        'pet_name' => '',
+        'pet_birth_date' => null,
+        'pet_memorial_date' => null,
+        'short_tribute' => '',
+        'final_letter' => '',
+        'video_type' => 'none',
+        'video_url' => '',
+        'video_file' => '',
+        'bg_image_portrait' => '',
+        'bg_image_landscape' => '',
+        'cover_photo' => '',
+        'share_footer_text' => 'Created with love through FurEver Memories',
+        'youtube_embed_url' => '',
+        'video_max_mb' => DEFAULT_VIDEO_MAX_MB,
+    ];
+}
+
+function create_client_account(array $input): array
+{
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $contactNumber = trim((string)($input['contact_number'] ?? ''));
+    $address = trim((string)($input['address'] ?? ''));
+    $email = mb_strtolower(trim((string)($input['email'] ?? '')));
+    $passwordHash = (string)($input['password_hash'] ?? '');
+    $authProvider = trim((string)($input['auth_provider'] ?? 'password'));
+    $providerUserId = trim((string)($input['social_provider_user_id'] ?? ''));
+    $emailVerified = !empty($input['is_email_verified']) ? 1 : 0;
+    $verifiedAt = $emailVerified ? now() : null;
+
+    if ($fullName === '' || $email === '' || $passwordHash === '') {
+        throw new RuntimeException('Full name, email, and account credentials are required.');
+    }
+
+    if (fetch_user_by_email($email)) {
+        throw new RuntimeException('Email already exists.');
+    }
+
+    $clientGuid = guid();
+    db()->prepare('INSERT INTO users (role, client_guid, full_name, contact_number, address, email, password_hash, is_active, is_email_verified, email_verified_at, auth_provider, social_provider_user_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([
+            'client',
+            $clientGuid,
+            $fullName,
+            $contactNumber,
+            $address,
+            $email,
+            $passwordHash,
+            1,
+            $emailVerified,
+            $verifiedAt,
+            $authProvider,
+            $providerUserId !== '' ? $providerUserId : null,
+            now(),
+            now(),
+        ]);
+
+    $clientId = (int)db()->lastInsertId();
+    upsert_memorial($clientId, default_memorial_payload());
+    return fetch_user_by_id($clientId) ?: [];
+}
+
 function dom_inner_html(DOMNode $node): string
 {
     $html = '';
@@ -336,6 +652,13 @@ function fetch_user_by_id(int $id): ?array
     return $stmt->fetch() ?: null;
 }
 
+function fetch_user_by_social_identity(string $provider, string $providerUserId): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM users WHERE auth_provider = ? AND social_provider_user_id = ? LIMIT 1');
+    $stmt->execute([strtolower(trim($provider)), trim($providerUserId)]);
+    return $stmt->fetch() ?: null;
+}
+
 function fetch_client_by_guid(string $guid): ?array
 {
     $stmt = db()->prepare('SELECT * FROM users WHERE client_guid = ? AND role = "client" LIMIT 1');
@@ -348,6 +671,429 @@ function fetch_memorial_by_client_id(int $clientId): ?array
     $stmt = db()->prepare('SELECT * FROM memorial_pages WHERE client_user_id = ? LIMIT 1');
     $stmt->execute([$clientId]);
     return $stmt->fetch() ?: null;
+}
+
+function fetch_subscription_plans(bool $activeOnly = true): array
+{
+    $sql = 'SELECT * FROM subscription_plans';
+    if ($activeOnly) {
+        $sql .= ' WHERE is_active = 1';
+    }
+    $sql .= ' ORDER BY sort_order ASC, id ASC';
+    return db()->query($sql)->fetchAll();
+}
+
+function fetch_subscription_plan_by_id(int $planId): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM subscription_plans WHERE id = ? LIMIT 1');
+    $stmt->execute([$planId]);
+    return $stmt->fetch() ?: null;
+}
+
+function fetch_latest_subscription_for_user(int $userId): ?array
+{
+    $stmt = db()->prepare('SELECT s.*, p.name AS plan_name, p.slug AS plan_slug, p.billing_cycle, p.duration_days, p.price_amount AS plan_price_amount, p.currency AS plan_currency FROM client_subscriptions s LEFT JOIN subscription_plans p ON p.id = s.plan_id WHERE s.user_id = ? ORDER BY s.id DESC LIMIT 1');
+    $stmt->execute([$userId]);
+    return $stmt->fetch() ?: null;
+}
+
+function fetch_subscription_by_id(int $subscriptionId): ?array
+{
+    $stmt = db()->prepare('SELECT s.*, p.name AS plan_name, p.slug AS plan_slug, p.billing_cycle, p.duration_days, p.price_amount AS plan_price_amount, p.currency AS plan_currency FROM client_subscriptions s LEFT JOIN subscription_plans p ON p.id = s.plan_id WHERE s.id = ? LIMIT 1');
+    $stmt->execute([$subscriptionId]);
+    return $stmt->fetch() ?: null;
+}
+
+function fetch_subscription_payments_for_user(int $userId, int $limit = 10): array
+{
+    $stmt = db()->prepare('SELECT sp.*, cs.plan_id, p.name AS plan_name FROM subscription_payments sp LEFT JOIN client_subscriptions cs ON cs.id = sp.subscription_id LEFT JOIN subscription_plans p ON p.id = cs.plan_id WHERE sp.user_id = ? ORDER BY sp.id DESC LIMIT ' . (int)$limit);
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+function fetch_latest_payment_for_user(int $userId): ?array
+{
+    $stmt = db()->prepare('SELECT sp.*, cs.plan_id, p.name AS plan_name FROM subscription_payments sp LEFT JOIN client_subscriptions cs ON cs.id = sp.subscription_id LEFT JOIN subscription_plans p ON p.id = cs.plan_id WHERE sp.user_id = ? ORDER BY sp.id DESC LIMIT 1');
+    $stmt->execute([$userId]);
+    return $stmt->fetch() ?: null;
+}
+
+function fetch_subscription_payment_by_id(int $paymentId): ?array
+{
+    $stmt = db()->prepare('SELECT sp.*, cs.user_id AS subscription_user_id, cs.plan_id, p.name AS plan_name, p.duration_days, p.currency AS plan_currency FROM subscription_payments sp LEFT JOIN client_subscriptions cs ON cs.id = sp.subscription_id LEFT JOIN subscription_plans p ON p.id = cs.plan_id WHERE sp.id = ? LIMIT 1');
+    $stmt->execute([$paymentId]);
+    return $stmt->fetch() ?: null;
+}
+
+function subscription_is_active(?array $subscription): bool
+{
+    if (!$subscription || ($subscription['status'] ?? '') !== 'active') {
+        return false;
+    }
+
+    $endsAt = trim((string)($subscription['ends_at'] ?? ''));
+    if ($endsAt === '') {
+        return true;
+    }
+
+    try {
+        return (new DateTime($endsAt)) >= new DateTime();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ensure_subscription_expiry_state(int $userId): void
+{
+    $subscription = fetch_latest_subscription_for_user($userId);
+    if (!$subscription || ($subscription['status'] ?? '') !== 'active') {
+        return;
+    }
+
+    if (subscription_is_active($subscription)) {
+        return;
+    }
+
+    db()->prepare('UPDATE client_subscriptions SET status = ?, updated_at = ? WHERE id = ?')
+        ->execute(['expired', now(), $subscription['id']]);
+}
+
+function memorial_public_access_summary(int $userId, ?array $memorial = null): array
+{
+    ensure_subscription_expiry_state($userId);
+    $memorial = $memorial ?: fetch_memorial_by_client_id($userId);
+    $subscription = fetch_latest_subscription_for_user($userId);
+
+    if ($memorial && !empty($memorial['public_access_override'])) {
+        return [
+            'is_public' => true,
+            'source' => 'admin_override',
+            'label' => 'Public via admin approval',
+            'subscription' => $subscription,
+        ];
+    }
+
+    if (subscription_is_active($subscription)) {
+        return [
+            'is_public' => true,
+            'source' => 'subscription',
+            'label' => 'Public via active subscription',
+            'subscription' => $subscription,
+        ];
+    }
+
+    $status = $subscription['status'] ?? 'none';
+    $labelMap = [
+        'pending_payment' => 'Private preview only: waiting for payment submission',
+        'pending_review' => 'Private preview only: payment under review',
+        'rejected' => 'Private preview only: payment needs attention',
+        'expired' => 'Private preview only: subscription expired',
+        'cancelled' => 'Private preview only: subscription cancelled',
+        'none' => 'Private preview only',
+    ];
+
+    return [
+        'is_public' => false,
+        'source' => 'private',
+        'label' => $labelMap[$status] ?? 'Private preview only',
+        'subscription' => $subscription,
+    ];
+}
+
+function user_can_view_private_memorial(array $client): bool
+{
+    if (!is_logged_in()) {
+        return false;
+    }
+
+    if (is_admin()) {
+        return true;
+    }
+
+    return is_client() && (int)(current_user()['id'] ?? 0) === (int)$client['id'];
+}
+
+function create_subscription_request(int $userId, int $planId): array
+{
+    $plan = fetch_subscription_plan_by_id($planId);
+    if (!$plan || empty($plan['is_active'])) {
+        throw new RuntimeException('Selected subscription plan is not available.');
+    }
+
+    $existing = fetch_latest_subscription_for_user($userId);
+    if ($existing && in_array((string)$existing['status'], ['pending_payment', 'pending_review'], true)) {
+        return $existing;
+    }
+
+    db()->prepare('INSERT INTO client_subscriptions (user_id, plan_id, status, amount, currency, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
+        ->execute([
+            $userId,
+            $planId,
+            'pending_payment',
+            $plan['price_amount'],
+            $plan['currency'],
+            now(),
+            now(),
+        ]);
+
+    return fetch_subscription_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function fetch_subscription_payment_by_order_id(string $orderId): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM subscription_payments WHERE gateway_order_id = ? LIMIT 1');
+    $stmt->execute([trim($orderId)]);
+    return $stmt->fetch() ?: null;
+}
+
+function create_paypal_checkout_order(array $subscription, array $user, string $returnUrl, string $cancelUrl): array
+{
+    if (!$subscription || empty($subscription['id']) || empty($subscription['plan_name'])) {
+        throw new RuntimeException('Subscription request not found.');
+    }
+
+    if ((int)($subscription['user_id'] ?? 0) !== (int)($user['id'] ?? 0)) {
+        throw new RuntimeException('This subscription does not belong to the current client.');
+    }
+
+    if (($subscription['status'] ?? '') === 'active') {
+        throw new RuntimeException('This subscription is already active.');
+    }
+
+    $amountValue = number_format((float)($subscription['amount'] ?? 0), 2, '.', '');
+    if ((float)$amountValue <= 0) {
+        throw new RuntimeException('Invalid subscription amount.');
+    }
+
+    $payload = [
+        'intent' => 'CAPTURE',
+        'purchase_units' => [[
+            'reference_id' => 'subscription-' . (int)$subscription['id'],
+            'custom_id' => (string)(int)$subscription['id'],
+            'description' => 'FurEver Memories - ' . (string)$subscription['plan_name'],
+            'amount' => [
+                'currency_code' => (string)($subscription['currency'] ?: 'PHP'),
+                'value' => $amountValue,
+            ],
+        ]],
+        'application_context' => [
+            'brand_name' => APP_NAME,
+            'landing_page' => 'LOGIN',
+            'user_action' => 'PAY_NOW',
+            'return_url' => $returnUrl,
+            'cancel_url' => $cancelUrl,
+        ],
+    ];
+
+    $response = paypal_request('POST', '/v2/checkout/orders', $payload);
+    $approvalUrl = paypal_find_link($response, 'approve');
+    if ($approvalUrl === '') {
+        throw new RuntimeException('PayPal did not return an approval link.');
+    }
+
+    return [
+        'order' => $response,
+        'approval_url' => $approvalUrl,
+    ];
+}
+
+function activate_subscription_from_paypal_capture(array $captureResponse, int $expectedUserId): array
+{
+    $orderId = trim((string)($captureResponse['id'] ?? ''));
+    if ($orderId === '') {
+        throw new RuntimeException('PayPal capture response is missing the order ID.');
+    }
+
+    $existingPayment = fetch_subscription_payment_by_order_id($orderId);
+    if ($existingPayment) {
+        $subscription = fetch_latest_subscription_for_user($expectedUserId);
+        return [
+            'payment' => $existingPayment,
+            'subscription' => $subscription,
+        ];
+    }
+
+    $purchaseUnit = $captureResponse['purchase_units'][0] ?? [];
+    $subscriptionId = (int)($purchaseUnit['custom_id'] ?? 0);
+    $subscription = fetch_subscription_by_id($subscriptionId);
+    if (!$subscription || (int)($subscription['user_id'] ?? 0) !== $expectedUserId) {
+        throw new RuntimeException('Unable to match this PayPal payment to your memorial subscription.');
+    }
+
+    $capture = $purchaseUnit['payments']['captures'][0] ?? [];
+    $captureId = trim((string)($capture['id'] ?? ''));
+    $captureStatus = strtoupper(trim((string)($capture['status'] ?? '')));
+    if ($captureStatus !== 'COMPLETED') {
+        throw new RuntimeException('PayPal payment was not completed yet.');
+    }
+
+    $amount = (float)($capture['amount']['value'] ?? $subscription['amount'] ?? 0);
+    $currency = (string)($capture['amount']['currency_code'] ?? $subscription['currency'] ?? 'PHP');
+    $payer = $captureResponse['payer'] ?? [];
+    $payerName = trim((string)(
+        ($payer['name']['given_name'] ?? '')
+        . ' '
+        . ($payer['name']['surname'] ?? '')
+    ));
+    if ($payerName === '') {
+        $payerName = (string)($payer['email_address'] ?? ($subscription['full_name'] ?? 'PayPal Payer'));
+    }
+
+    $payerContact = (string)($payer['email_address'] ?? '');
+    $referenceNumber = $captureId !== '' ? $captureId : $orderId;
+
+    db()->prepare('INSERT INTO subscription_payments (subscription_id, user_id, payment_method, amount, currency, reference_number, payer_name, payer_contact, status, gateway_provider, gateway_order_id, gateway_capture_id, gateway_payer_id, raw_response_json, reviewed_at, review_notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([
+            $subscription['id'],
+            $expectedUserId,
+            'paypal',
+            $amount,
+            $currency,
+            $referenceNumber,
+            $payerName,
+            $payerContact !== '' ? $payerContact : null,
+            'approved',
+            'paypal',
+            $orderId,
+            $captureId !== '' ? $captureId : null,
+            trim((string)($payer['payer_id'] ?? '')) ?: null,
+            json_encode($captureResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            now(),
+            'Activated automatically after PayPal payment capture.',
+            now(),
+            now(),
+        ]);
+
+    $paymentId = (int)db()->lastInsertId();
+    approve_subscription_payment($paymentId, 0, 'Activated automatically after PayPal payment capture.');
+
+    return [
+        'payment' => fetch_subscription_payment_by_id($paymentId),
+        'subscription' => fetch_subscription_by_id((int)$subscription['id']),
+    ];
+}
+
+function submit_subscription_payment(int $subscriptionId, int $userId, array $input): array
+{
+    $subscription = fetch_subscription_by_id($subscriptionId);
+    if (!$subscription || (int)$subscription['user_id'] !== $userId) {
+        throw new RuntimeException('Subscription request not found.');
+    }
+
+    $method = trim((string)($input['payment_method'] ?? ''));
+    $amount = (float)($input['amount'] ?? 0);
+    $referenceNumber = trim((string)($input['reference_number'] ?? ''));
+    $payerName = trim((string)($input['payer_name'] ?? ''));
+    $payerContact = trim((string)($input['payer_contact'] ?? ''));
+    $notes = trim((string)($input['notes'] ?? ''));
+    $proofPath = trim((string)($input['proof_path'] ?? ''));
+
+    if (!array_key_exists($method, payment_method_options())) {
+        throw new RuntimeException('Please select a valid payment method.');
+    }
+
+    if ($amount <= 0) {
+        throw new RuntimeException('Please provide the payment amount.');
+    }
+
+    if ($referenceNumber === '' || $payerName === '') {
+        throw new RuntimeException('Reference number and payer name are required.');
+    }
+
+    db()->prepare('INSERT INTO subscription_payments (subscription_id, user_id, payment_method, amount, currency, reference_number, payer_name, payer_contact, proof_path, notes, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([
+            $subscriptionId,
+            $userId,
+            $method,
+            $amount,
+            $subscription['currency'] ?: 'PHP',
+            $referenceNumber,
+            $payerName,
+            $payerContact,
+            $proofPath !== '' ? $proofPath : null,
+            $notes !== '' ? $notes : null,
+            'pending',
+            now(),
+            now(),
+        ]);
+
+    db()->prepare('UPDATE client_subscriptions SET status = ?, payment_method = ?, updated_at = ? WHERE id = ?')
+        ->execute(['pending_review', $method, now(), $subscriptionId]);
+
+    return fetch_subscription_payment_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function approve_subscription_payment(int $paymentId, int $reviewerId, string $reviewNotes = ''): void
+{
+    $payment = fetch_subscription_payment_by_id($paymentId);
+    if (!$payment) {
+        throw new RuntimeException('Payment submission not found.');
+    }
+
+    $reviewerValue = $reviewerId > 0 ? $reviewerId : null;
+
+    $startsAt = new DateTime();
+    $endsAt = (clone $startsAt)->modify('+' . max(1, (int)$payment['duration_days']) . ' days');
+
+    db()->prepare('UPDATE subscription_payments SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute(['approved', $reviewerValue, now(), $reviewNotes !== '' ? $reviewNotes : null, now(), $paymentId]);
+
+    db()->prepare('UPDATE client_subscriptions SET status = ?, starts_at = ?, ends_at = ?, approved_at = ?, approved_by_user_id = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute([
+            'active',
+            $startsAt->format('Y-m-d H:i:s'),
+            $endsAt->format('Y-m-d H:i:s'),
+            now(),
+            $reviewerValue,
+            $reviewNotes !== '' ? $reviewNotes : null,
+            now(),
+            $payment['subscription_id'],
+        ]);
+}
+
+function reject_subscription_payment(int $paymentId, int $reviewerId, string $reviewNotes = ''): void
+{
+    $payment = fetch_subscription_payment_by_id($paymentId);
+    if (!$payment) {
+        throw new RuntimeException('Payment submission not found.');
+    }
+
+    $reviewerValue = $reviewerId > 0 ? $reviewerId : null;
+
+    db()->prepare('UPDATE subscription_payments SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute(['rejected', $reviewerValue, now(), $reviewNotes !== '' ? $reviewNotes : null, now(), $paymentId]);
+
+    db()->prepare('UPDATE client_subscriptions SET status = ?, review_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute(['rejected', $reviewNotes !== '' ? $reviewNotes : null, now(), $payment['subscription_id']]);
+}
+
+function set_memorial_public_override(int $clientUserId, bool $enabled, ?int $adminUserId = null, string $note = ''): void
+{
+    db()->prepare('UPDATE memorial_pages SET public_access_override = ?, public_access_override_note = ?, public_access_enabled_at = ?, public_access_enabled_by_user_id = ?, updated_at = ? WHERE client_user_id = ?')
+        ->execute([
+            $enabled ? 1 : 0,
+            $note !== '' ? $note : null,
+            $enabled ? now() : null,
+            $enabled ? $adminUserId : null,
+            now(),
+            $clientUserId,
+        ]);
+}
+
+function subscription_status_badge_class(string $status): string
+{
+    $map = [
+        'active' => 'text-bg-success',
+        'approved' => 'text-bg-success',
+        'pending' => 'text-bg-warning',
+        'pending_payment' => 'text-bg-secondary',
+        'pending_review' => 'text-bg-warning',
+        'rejected' => 'text-bg-danger',
+        'expired' => 'text-bg-dark',
+        'cancelled' => 'text-bg-dark',
+    ];
+
+    return $map[$status] ?? 'text-bg-light';
 }
 
 function fetch_timeline_items(int $memorialId): array

@@ -251,6 +251,7 @@ $timelines = fetch_timeline_items($memorialId);
 $gallery = fetch_gallery_items($memorialId);
 $music = fetch_music_items($memorialId);
 $publicUrl = public_memorial_url($client['client_guid']);
+$accessSummary = memorial_public_access_summary((int)$client['id'], $memorial);
 $qrDownloadName = preg_replace('/[^A-Za-z0-9]+/', '-', trim($client['full_name']));
 $qrDownloadName = trim((string)$qrDownloadName, '-');
 if ($qrDownloadName === '') {
@@ -318,10 +319,11 @@ $qrDownloadName .= '-furever-memories-qr.png';
         <div>
             <h1 class="h3 mb-1">Memorial Builder</h1>
             <div class="text-muted">Client: <?= e($client['full_name']) ?></div>
+            <div class="small text-muted mt-1"><?= e($accessSummary['label']) ?></div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="<?= e($publicUrl) ?>" target="_blank" class="btn btn-dark">Open Page</a>
-            <button type="button" class="btn btn-outline-dark" onclick="navigator.clipboard.writeText('<?= e($publicUrl) ?>')">Copy Link</button>
+            <a href="<?= e($publicUrl) ?>" target="_blank" class="btn btn-dark"><?= !empty($accessSummary['is_public']) ? 'Open Public Page' : 'Open Private Preview' ?></a>
+            <button type="button" class="btn btn-outline-dark" onclick="navigator.clipboard.writeText('<?= e($publicUrl) ?>')"><?= !empty($accessSummary['is_public']) ? 'Copy Public Link' : 'Copy Preview Link' ?></button>
         </div>
     </div>
 
@@ -495,13 +497,20 @@ $qrDownloadName .= '-furever-memories-qr.png';
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4 mb-4">
                 <div class="card-body p-4">
-                    <h2 class="h5 mb-3">Share / QR</h2>
+                    <h2 class="h5 mb-3"><?= !empty($accessSummary['is_public']) ? 'Share / QR' : 'Preview Access' ?></h2>
                     <?php if (count_pending_messages((int)$memorial['id']) > 0): ?><div class="alert alert-warning small">You have <?= (int)count_pending_messages((int)$memorial['id']) ?> pending message(s).</div><?php endif; ?>
                     <div id="qrcode" class="mb-3"></div>
-                    <button type="button" class="btn btn-success w-100 mb-2" id="downloadQrBtn">Download QR Code</button>
+                    <?php if (!empty($accessSummary['is_public'])): ?>
+                        <button type="button" class="btn btn-success w-100 mb-2" id="downloadQrBtn">Download QR Code</button>
+                    <?php else: ?>
+                        <a href="subscription.php" class="btn btn-dark w-100 mb-2">Unlock Public Sharing</a>
+                    <?php endif; ?>
                     <input class="form-control mb-2" readonly value="<?= e($publicUrl) ?>">
-                    <button type="button" class="btn btn-outline-dark w-100 mb-2" onclick="navigator.clipboard.writeText('<?= e($publicUrl) ?>')">Copy Link</button>
+                    <button type="button" class="btn btn-outline-dark w-100 mb-2" onclick="navigator.clipboard.writeText('<?= e($publicUrl) ?>')"><?= !empty($accessSummary['is_public']) ? 'Copy Public Link' : 'Copy Preview Link' ?></button>
                     <a href="moderation.php<?= is_admin() ? '?clientguid=' . urlencode($client['client_guid']) : '' ?>" class="btn btn-outline-primary w-100">Moderate Messages</a>
+                    <?php if (empty($accessSummary['is_public'])): ?>
+                        <div class="small text-muted mt-3">This memorial stays private until subscription approval or an administrator manually enables public access.</div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="card border-0 shadow-sm rounded-4">
@@ -663,27 +672,30 @@ $(document).on('change', 'input[name="music_file[]"]', function(){
     }
 });
 
-document.getElementById('downloadQrBtn').addEventListener('click', function () {
-    const qrContainer = document.getElementById('qrcode');
-    const img = qrContainer.querySelector('img');
-    const canvas = qrContainer.querySelector('canvas');
+const downloadQrBtn = document.getElementById('downloadQrBtn');
+if (downloadQrBtn) {
+    downloadQrBtn.addEventListener('click', function () {
+        const qrContainer = document.getElementById('qrcode');
+        const img = qrContainer.querySelector('img');
+        const canvas = qrContainer.querySelector('canvas');
 
-    let dataUrl = '';
-    if (img) {
-        dataUrl = img.src;
-    } else if (canvas) {
-        dataUrl = canvas.toDataURL('image/png');
-    }
+        let dataUrl = '';
+        if (img) {
+            dataUrl = img.src;
+        } else if (canvas) {
+            dataUrl = canvas.toDataURL('image/png');
+        }
 
-    if (dataUrl) {
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = <?= json_encode($qrDownloadName) ?>;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-});
+        if (dataUrl) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = <?= json_encode($qrDownloadName) ?>;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+    });
+}
 
 function removeGalleryItems(items) {
     items.forEach(function(item) {

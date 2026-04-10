@@ -96,13 +96,77 @@ $memorial = fetch_memorial_by_client_id((int)$client['id']);
 if (!$memorial) { http_response_code(404); exit('Memorial page not configured.'); }
 
 $memorialId = (int)$memorial['id'];
+$accessSummary = memorial_public_access_summary((int)$client['id'], $memorial);
+$publicAccessEnabled = !empty($accessSummary['is_public']);
+$allowPrivatePreview = !$publicAccessEnabled && user_can_view_private_memorial($client);
+$isPrivatePreview = !$publicAccessEnabled;
+
+if (!$publicAccessEnabled && !$allowPrivatePreview) {
+    http_response_code(403);
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= e(APP_NAME) ?> | Private Memorial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body class="login-page">
+<div class="login-shell">
+    <div class="container">
+        <div class="login-card">
+            <div class="row g-0">
+                <div class="col-lg-6 d-none d-lg-block">
+                    <section class="login-brand-panel">
+                        <a href="index.php" class="login-brand-mark text-decoration-none">
+                            <img src="assets/images/logo-furever-memories.png" alt="FurEver Memories logo" class="login-brand-logo">
+                            <span><?= e(APP_NAME) ?></span>
+                        </a>
+                        <span class="marketing-kicker">Private memorial preview</span>
+                        <h1 class="login-hero-title">This memorial is still in private viewing mode.</h1>
+                        <p class="login-hero-copy">The page owner can preview and keep building the memorial, but public sharing stays locked until subscription access is activated or approved by an administrator.</p>
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="login-form-panel">
+                        <div class="login-form-wrap">
+                            <div class="login-form-copy">
+                                <span class="login-form-kicker">Access limited</span>
+                                <h2>This memorial is not public yet</h2>
+                                <p>Sign in as the client or administrator if you need to preview or manage this memorial.</p>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <a href="login.php" class="btn login-submit-btn">Sign In</a>
+                                <a href="index.php" class="btn btn-outline-dark rounded-pill">Back to homepage</a>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+    <?php
+    exit;
+}
+
 $messageError = '';
 $supportError = '';
-record_memorial_view($memorialId);
+if ($publicAccessEnabled) {
+    record_memorial_view($memorialId);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     verify_csrf_or_fail();
     try {
+        if (!$publicAccessEnabled && in_array($_POST['action'], ['message', 'support_contact', 'candle', 'heart'], true)) {
+            throw new RuntimeException('This memorial is still in private preview mode. Public interactions will open after subscription approval.');
+        }
+
         if ($_POST['action'] === 'message') {
             require_once __DIR__ . '/includes/upload_helpers.php';
             $visitorName = trim($_POST['visitor_name'] ?? '');
@@ -199,6 +263,8 @@ $bgLandscape = !empty($memorial['bg_image_landscape']) ? UPLOAD_URL . '/' . $mem
 $publicUrl = public_memorial_url($clientGuid);
 $flashSuccess = flash_get('success');
 $supportSuccess = flash_get('support_success');
+$ownerDashboardUrl = 'dashboard.php';
+$billingUrl = 'subscription.php';
 ?>
 <!doctype html>
 <html lang="en">
@@ -220,16 +286,60 @@ $supportSuccess = flash_get('support_success');
     <?php if ($supportError): ?><div class="alert alert-danger"><?= e($supportError) ?></div><?php endif; ?>
 </div>
 <?php endif; ?>
+<?php if ($isPrivatePreview): ?>
+<div class="container pt-3">
+    <div class="alert alert-warning border-0 shadow-sm rounded-4">
+        <strong>Private preview only.</strong> <?= e($accessSummary['label']) ?>.
+        <?php if ($allowPrivatePreview && is_client()): ?>
+            <a href="<?= e($billingUrl) ?>" class="alert-link">Open billing and access settings</a>.
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 <header><?php include __DIR__ . '/modules/module_petcoverpage.php'; ?></header>
 <main>
     <?php include __DIR__ . '/modules/module_storytimeline.php'; ?>
     <?php include __DIR__ . '/modules/module_petimagecarousell.php'; ?>
     <?php include __DIR__ . '/modules/module_video_tribute.php'; ?>
-    <?php include __DIR__ . '/modules/module_messages.php'; ?>
-    <?php include __DIR__ . '/modules/module_reactions.php'; ?>
+    <?php if ($publicAccessEnabled): ?>
+        <?php include __DIR__ . '/modules/module_messages.php'; ?>
+        <?php include __DIR__ . '/modules/module_reactions.php'; ?>
+    <?php endif; ?>
     <?php include __DIR__ . '/modules/module_final_letter.php'; ?>
+    <?php if ($isPrivatePreview): ?>
+    <section class="py-5 invite-share-section">
+        <div class="container invite-share-container">
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4 p-md-5 text-center">
+                    <span class="marketing-kicker">Private preview</span>
+                    <h2 class="fw-bold mb-3">Public sharing unlocks after subscription approval</h2>
+                    <p class="text-muted mb-4">For now, only the memorial owner and administrators can preview this page. Once a subscription payment is submitted and approved, the memorial will become publicly viewable and shareable.</p>
+                    <div class="d-flex gap-2 justify-content-center flex-wrap">
+                        <?php if ($allowPrivatePreview && is_client()): ?>
+                            <a href="<?= e($billingUrl) ?>" class="btn btn-dark rounded-pill px-4">Go to Billing &amp; Access</a>
+                            <a href="memorial_edit.php" class="btn btn-outline-dark rounded-pill px-4">Continue Editing</a>
+                        <?php elseif ($allowPrivatePreview && is_admin()): ?>
+                            <a href="admin_clients.php" class="btn btn-dark rounded-pill px-4">Manage Client Access</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
 </main>
-<footer><?php include __DIR__ . '/modules/module_footer.php'; ?></footer>
+<footer>
+    <?php if ($publicAccessEnabled): ?>
+        <?php include __DIR__ . '/modules/module_footer.php'; ?>
+    <?php else: ?>
+        <section class="py-4 footer-section text-center text-white">
+            <div class="container">
+                <div class="mb-2"><?= render_rich_text($memorial['share_footer_text'] ?: 'Created with love through FurEver Memories') ?></div>
+                <div class="small opacity-75">This memorial is currently available in private preview mode only.</div>
+            </div>
+        </section>
+    <?php endif; ?>
+</footer>
 <?php include __DIR__ . '/modules/module_music_player.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
