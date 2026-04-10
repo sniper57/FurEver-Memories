@@ -42,7 +42,6 @@ define('BRUTE_FORCE_WINDOW_MINUTES', 15);
 define('EMAIL_VERIFICATION_EXPIRY_HOURS', 48);
 define('MAIL_FROM_NAME', 'FurEver Memories');
 define('MAIL_FROM_EMAIL', 'hello.momentoshare@gmail.com');
-// define('BREVO_API_KEY', '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'); // set your Brevo API key here
 define('BREVO_API_KEY', 'xxxxx'); // set your Brevo API key here
 define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 define('PASSWORD_MIN_LENGTH', 8);
