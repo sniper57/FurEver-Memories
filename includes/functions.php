@@ -245,7 +245,7 @@ function paypal_is_configured(): bool
     return !empty(paypal_settings()['configured']);
 }
 
-function paypal_http_request(string $method, string $url, array $headers = [], ?array $payload = null): array
+function paypal_http_request(string $method, string $url, array $headers = [], array|object|null $payload = null): array
 {
     if (!function_exists('curl_init')) {
         throw new RuntimeException('PayPal checkout requires the PHP cURL extension.');
@@ -322,7 +322,7 @@ function paypal_access_token(): string
     return (string)$decoded['access_token'];
 }
 
-function paypal_request(string $method, string $path, ?array $payload = null): array
+function paypal_request(string $method, string $path, array|object|null $payload = null): array
 {
     $settings = paypal_settings();
     $token = paypal_access_token();

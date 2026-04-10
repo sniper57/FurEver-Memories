@@ -46,7 +46,7 @@ try {
             throw new RuntimeException('PayPal did not return a valid order token.');
         }
 
-        $captureResponse = paypal_request('POST', '/v2/checkout/orders/' . rawurlencode($token) . '/capture');
+        $captureResponse = paypal_request('POST', '/v2/checkout/orders/' . rawurlencode($token) . '/capture', (object) []);
 
         $result = activate_subscription_from_paypal_capture($captureResponse, (int)$user['id']);
         log_audit('paypal.checkout.capture', 'PayPal payment captured and memorial access activated.', 'client_subscription', (int)($result['subscription']['id'] ?? 0), [
