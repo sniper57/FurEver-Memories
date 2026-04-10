@@ -403,21 +403,31 @@ function payment_method_instructions(): array
             'headline' => 'Pay with GCash',
             'details' => defined('GCASH_PAYMENT_LABEL') && trim((string)GCASH_PAYMENT_LABEL) !== ''
                 ? trim((string)GCASH_PAYMENT_LABEL)
-                : 'Use your FurEver Memories GCash receiving details here.',
+                : 'GCash/Maya Name: John Patrick Galacgac' . "\n"
+                    . 'GCash/Maya #: 09179524856' . "\n\n"
+                    . 'Please send a screenshot of payment. We need the reference number for verification.',
         ],
         'maya' => [
             'label' => 'Maya',
             'headline' => 'Pay with Maya',
             'details' => defined('MAYA_PAYMENT_LABEL') && trim((string)MAYA_PAYMENT_LABEL) !== ''
                 ? trim((string)MAYA_PAYMENT_LABEL)
-                : 'Use your FurEver Memories Maya receiving details here.',
+                : 'GCash/Maya Name: John Patrick Galacgac' . "\n"
+                    . 'GCash/Maya #: 09179524856' . "\n\n"
+                    . 'Please send a screenshot of payment. We need the reference number for verification.',
         ],
         'bank_transfer' => [
             'label' => 'Bank Transfer',
             'headline' => 'Pay by Bank Transfer',
             'details' => defined('BANK_TRANSFER_LABEL') && trim((string)BANK_TRANSFER_LABEL) !== ''
                 ? trim((string)BANK_TRANSFER_LABEL)
-                : 'Use your FurEver Memories bank transfer instructions here.',
+                : 'BDO' . "\n"
+                    . 'Account Number: 005540238223' . "\n"
+                    . 'Account Name: Shirley Irlandez' . "\n\n"
+                    . 'BPI' . "\n"
+                    . 'Account Name: Shirley Galacgac' . "\n"
+                    . 'Account Number: 2569502171' . "\n\n"
+                    . 'Please send a screenshot of payment. We need the reference number for verification.',
         ],
     ];
 }
@@ -656,6 +666,124 @@ function fetch_user_by_id(int $id): ?array
     $stmt = db()->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$id]);
     return $stmt->fetch() ?: null;
+}
+
+function fetch_all_clients(): array
+{
+    $stmt = db()->prepare('SELECT * FROM users WHERE role = ? ORDER BY id DESC');
+    $stmt->execute(['client']);
+    return $stmt->fetchAll();
+}
+
+function update_client_account_by_admin(int $clientId, array $input): array
+{
+    $client = fetch_user_by_id($clientId);
+    if (!$client || ($client['role'] ?? '') !== 'client') {
+        throw new RuntimeException('Client not found.');
+    }
+
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $contactNumber = trim((string)($input['contact_number'] ?? ''));
+    $address = trim((string)($input['address'] ?? ''));
+    $email = mb_strtolower(trim((string)($input['email'] ?? '')));
+
+    if ($fullName === '' || $email === '') {
+        throw new RuntimeException('Full name and email are required.');
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('Invalid email address.');
+    }
+
+    $existing = fetch_user_by_email($email);
+    if ($existing && (int)$existing['id'] !== $clientId) {
+        throw new RuntimeException('Email already exists.');
+    }
+
+    $emailChanged = $email !== (string)$client['email'];
+    $verified = $emailChanged ? 0 : (int)($client['is_email_verified'] ?? 0);
+    $verifiedAt = $emailChanged ? null : ($client['email_verified_at'] ?? null);
+
+    db()->prepare('UPDATE users SET full_name = ?, contact_number = ?, address = ?, email = ?, is_email_verified = ?, email_verified_at = ?, updated_at = ? WHERE id = ?')
+        ->execute([$fullName, $contactNumber, $address, $email, $verified, $verifiedAt, now(), $clientId]);
+
+    $updatedClient = fetch_user_by_id($clientId);
+    $verificationLink = '';
+    $verificationSent = false;
+
+    if ($emailChanged && $updatedClient) {
+        $issued = issue_email_verification_token($clientId, $email);
+        $verificationLink = (string)($issued['url'] ?? '');
+        $verificationSent = send_verification_email($updatedClient, $verificationLink);
+    }
+
+    return [
+        'client' => $updatedClient,
+        'email_changed' => $emailChanged,
+        'verification_link' => $verificationLink,
+        'verification_sent' => $verificationSent,
+    ];
+}
+
+function delete_directory_tree(string $path): void
+{
+    if ($path === '' || !is_dir($path)) {
+        return;
+    }
+
+    $items = scandir($path);
+    if (!is_array($items)) {
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+
+        $itemPath = $path . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($itemPath)) {
+            delete_directory_tree($itemPath);
+            continue;
+        }
+
+        @unlink($itemPath);
+    }
+
+    @rmdir($path);
+}
+
+function delete_client_account(int $clientId): array
+{
+    $client = fetch_user_by_id($clientId);
+    if (!$client || ($client['role'] ?? '') !== 'client') {
+        throw new RuntimeException('Client not found.');
+    }
+
+    $clientGuid = trim((string)($client['client_guid'] ?? ''));
+    $memorial = fetch_memorial_by_client_id($clientId);
+
+    db()->beginTransaction();
+    try {
+        db()->prepare('DELETE FROM users WHERE id = ? AND role = ?')->execute([$clientId, 'client']);
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+
+    if ($clientGuid !== '') {
+        delete_directory_tree(UPLOAD_DIR . DIRECTORY_SEPARATOR . $clientGuid);
+        delete_directory_tree(UPLOAD_DIR . DIRECTORY_SEPARATOR . 'music' . DIRECTORY_SEPARATOR . $clientGuid);
+    }
+
+    return [
+        'client' => $client,
+        'client_guid' => $clientGuid,
+        'memorial_id' => (int)($memorial['id'] ?? 0),
+    ];
 }
 
 function fetch_user_by_social_identity(string $provider, string $providerUserId): ?array
@@ -1328,6 +1456,43 @@ function count_pending_messages(int $memorialId): int
     return (int)$stmt->fetchColumn();
 }
 
+function count_messages(int $memorialId, bool $approvedOnly = false): int
+{
+    $sql = 'SELECT COUNT(*) FROM memorial_messages WHERE memorial_page_id = ?';
+    if ($approvedOnly) {
+        $sql .= ' AND is_approved = 1';
+    }
+    $stmt = db()->prepare($sql);
+    $stmt->execute([$memorialId]);
+    return (int)$stmt->fetchColumn();
+}
+
+function memorial_daily_views(int $memorialId, int $days = 7): array
+{
+    $days = max(1, min(31, $days));
+    $stmt = db()->prepare('SELECT DATE(viewed_at) AS view_date, COUNT(*) AS total FROM memorial_page_views WHERE memorial_page_id = ? AND viewed_at >= DATE_SUB(CURDATE(), INTERVAL ' . ($days - 1) . ' DAY) GROUP BY DATE(viewed_at)');
+    $stmt->execute([$memorialId]);
+    $rows = $stmt->fetchAll();
+    $counts = [];
+    foreach ($rows as $row) {
+        $counts[(string)$row['view_date']] = (int)$row['total'];
+    }
+
+    $labels = [];
+    $data = [];
+    for ($i = $days - 1; $i >= 0; $i--) {
+        $date = (new DateTime())->modify('-' . $i . ' days');
+        $key = $date->format('Y-m-d');
+        $labels[] = $date->format('M j');
+        $data[] = $counts[$key] ?? 0;
+    }
+
+    return [
+        'labels' => $labels,
+        'data' => $data,
+    ];
+}
+
 function count_candles(int $memorialId): int
 {
     $stmt = db()->prepare("SELECT COUNT(*) FROM memorial_reactions WHERE memorial_page_id = ? AND reaction_type = 'candle'");
@@ -1475,4 +1640,29 @@ function fetch_recent_audit_logs(int $limit = 200): array
 {
     $stmt = db()->query('SELECT a.*, u.full_name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id ORDER BY a.id DESC LIMIT ' . (int)$limit);
     return $stmt->fetchAll();
+}
+
+function count_audit_logs(): int
+{
+    return (int)db()->query('SELECT COUNT(*) FROM audit_logs')->fetchColumn();
+}
+
+function fetch_audit_logs_page(int $limit = 300, int $offset = 0): array
+{
+    $limit = max(1, min(1000, $limit));
+    $offset = max(0, $offset);
+    $stmt = db()->query('SELECT a.*, u.full_name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id ORDER BY a.id DESC LIMIT ' . $limit . ' OFFSET ' . $offset);
+    return $stmt->fetchAll();
+}
+
+function delete_oldest_audit_logs(int $count): int
+{
+    $count = max(0, min(100000, $count));
+    if ($count <= 0) {
+        return 0;
+    }
+
+    $stmt = db()->prepare('DELETE FROM audit_logs ORDER BY id ASC LIMIT ' . $count);
+    $stmt->execute();
+    return $stmt->rowCount();
 }

@@ -2,9 +2,17 @@
 require_once __DIR__ . '/functions.php';
 $u = current_user();
 $currentPage = basename((string)($_SERVER['PHP_SELF'] ?? ''));
-$requestedClientGuid = trim((string)($_GET['clientguid'] ?? ''));
+$requestedClientGuid = trim((string)($_GET['clientguid'] ?? $_GET['c'] ?? ''));
+if ($requestedClientGuid === '' && is_admin()) {
+    $requestedClientGuid = trim((string)($_SESSION['admin_current_client_guid'] ?? ''));
+}
+if ($requestedClientGuid !== '' && is_admin()) {
+    $_SESSION['admin_current_client_guid'] = $requestedClientGuid;
+}
 $dashboardUrl = 'dashboard.php' . ((is_admin() && $requestedClientGuid !== '') ? '?clientguid=' . urlencode($requestedClientGuid) : '');
-$pageBuilderUrl = 'memorial_edit.php' . ((is_admin() && $requestedClientGuid !== '') ? '?clientguid=' . urlencode($requestedClientGuid) : '');
+$pageBuilderUrl = is_admin()
+    ? ($requestedClientGuid !== '' ? 'memorial_edit.php?clientguid=' . urlencode($requestedClientGuid) : 'admin_clients.php')
+    : 'memorial_edit.php';
 ?>
 <nav class="navbar navbar-expand-lg navbar-light sticky-top furever-admin-nav">
     <div class="container admin-nav-shell">

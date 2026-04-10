@@ -6,6 +6,12 @@ send_security_headers();
 $success = '';
 $error = '';
 $verificationLink = '';
+$editingClientId = (int)($_GET['edit'] ?? 0);
+$editingClient = $editingClientId > 0 ? fetch_user_by_id($editingClientId) : null;
+if ($editingClient && ($editingClient['role'] ?? '') !== 'client') {
+    $editingClient = null;
+    $editingClientId = 0;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf_or_fail();
@@ -60,6 +66,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Client created successfully.' . ($sent ? ' Verification email sent.' : ' Mail sending failed on this server, so use the manual verification link below.');
         }
 
+        if ($action === 'update_client') {
+            $clientId = (int)($_POST['client_id'] ?? 0);
+            $result = update_client_account_by_admin($clientId, $_POST);
+            $updatedClient = $result['client'] ?? null;
+            if (!$updatedClient) {
+                throw new RuntimeException('Client not found after update.');
+            }
+
+            $editingClientId = (int)$updatedClient['id'];
+            $editingClient = $updatedClient;
+            $verificationLink = (string)($result['verification_link'] ?? '');
+            log_audit('client.update', 'Administrator updated client account.', 'user', $editingClientId, [
+                'email_changed' => !empty($result['email_changed']),
+                'verification_sent' => !empty($result['verification_sent']),
+            ]);
+            $success = !empty($result['email_changed'])
+                ? 'Client updated successfully. The new email address must be verified before client login continues.'
+                : 'Client updated successfully.';
+        }
+
         if ($action === 'resend_verification') {
             $clientId = (int)($_POST['client_id'] ?? 0);
             $user = fetch_user_by_id($clientId);
@@ -100,12 +126,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_audit('memorial.public_override.disable', 'Administrator disabled manual public access override.', 'user', $clientId);
             $success = 'Manual public access override disabled.';
         }
+
+        if ($action === 'delete_client') {
+            $clientId = (int)($_POST['client_id'] ?? 0);
+            $deleted = delete_client_account($clientId);
+            log_audit('client.delete', 'Administrator deleted client account.', 'user', $clientId, [
+                'email' => $deleted['client']['email'] ?? null,
+                'client_guid' => $deleted['client_guid'] ?? null,
+                'memorial_id' => $deleted['memorial_id'] ?? null,
+            ]);
+            if ($editingClientId === $clientId) {
+                $editingClientId = 0;
+                $editingClient = null;
+            }
+            $success = 'Client deleted successfully.';
+        }
     } catch (Throwable $e) {
         $error = $e->getMessage();
     }
 }
 
-$clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC")->fetchAll();
+$clients = fetch_all_clients();
 ?>
 <!doctype html>
 <html lang="en">
@@ -118,24 +159,34 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
 </head>
 <body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4 admin-shell">
+<div class="container-fluid py-4 admin-shell">
     <div class="row g-4">
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4">
                 <div class="card-body p-4">
-                    <h1 class="h4 mb-3">Create Client</h1>
+                    <h1 class="h4 mb-3"><?= $editingClient ? 'Edit Client' : 'Create Client' ?></h1>
                     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
                     <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
                     <?php if ($verificationLink): ?><div class="alert alert-secondary small">Manual verification link:<br><a href="<?= e($verificationLink) ?>" target="_blank"><?= e($verificationLink) ?></a></div><?php endif; ?>
                     <form method="post">
                         <?= csrf_input() ?>
-                        <input type="hidden" name="action" value="create">
-                        <div class="mb-3"><label class="form-label">Full Name</label><input name="full_name" class="form-control" required></div>
-                        <div class="mb-3"><label class="form-label">Contact Number</label><input name="contact_number" class="form-control"></div>
-                        <div class="mb-3"><label class="form-label">Address</label><textarea name="address" class="form-control" rows="2"></textarea></div>
-                        <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" required></div>
-                        <div class="mb-3"><label class="form-label">Password</label><input type="text" name="password" class="form-control" required></div>
-                        <button class="btn btn-dark w-100">Create Client</button>
+                        <input type="hidden" name="action" value="<?= $editingClient ? 'update_client' : 'create' ?>">
+                        <?php if ($editingClient): ?>
+                            <input type="hidden" name="client_id" value="<?= (int)$editingClient['id'] ?>">
+                        <?php endif; ?>
+                        <div class="mb-3"><label class="form-label">Full Name</label><input name="full_name" class="form-control" value="<?= e($editingClient['full_name'] ?? '') ?>" required></div>
+                        <div class="mb-3"><label class="form-label">Contact Number</label><input name="contact_number" class="form-control" value="<?= e($editingClient['contact_number'] ?? '') ?>"></div>
+                        <div class="mb-3"><label class="form-label">Address</label><textarea name="address" class="form-control" rows="2"><?= e($editingClient['address'] ?? '') ?></textarea></div>
+                        <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<?= e($editingClient['email'] ?? '') ?>" required></div>
+                        <?php if (!$editingClient): ?>
+                            <div class="mb-3"><label class="form-label">Password</label><input type="text" name="password" class="form-control" required></div>
+                        <?php else: ?>
+                            <div class="alert alert-light border small">Changing the email will reset verification and send a fresh verification email.</div>
+                        <?php endif; ?>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-dark flex-grow-1"><?= $editingClient ? 'Save Client Changes' : 'Create Client' ?></button>
+                            <?php if ($editingClient): ?><a href="admin_clients.php" class="btn btn-outline-secondary">Cancel</a><?php endif; ?>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -154,6 +205,12 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
                                 $clientAccess = memorial_public_access_summary((int)$client['id'], $clientMemorial ?: null);
                                 $latestSubscription = fetch_latest_subscription_for_user((int)$client['id']);
                                 $latestPayment = fetch_latest_payment_for_user((int)$client['id']);
+                                $clientQrDownloadName = preg_replace('/[^A-Za-z0-9]+/', '-', trim((string)$client['full_name']));
+                                $clientQrDownloadName = trim((string)$clientQrDownloadName, '-');
+                                if ($clientQrDownloadName === '') {
+                                    $clientQrDownloadName = 'client';
+                                }
+                                $clientQrDownloadName .= '-furever-memories-qr.png';
                                 ?>
                                 <tr>
                                     <td><?= e($client['full_name']) ?></td>
@@ -179,14 +236,18 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
                                         <?php if ($latestPayment): ?>
                                             <div class="small text-muted mt-1"><?= e(ucfirst(str_replace('_', ' ', (string)$latestPayment['payment_method']))) ?> &bull; Ref <?= e($latestPayment['reference_number']) ?></div>
                                             <?php if (!empty($latestPayment['proof_path'])): ?>
-                                                <div class="small mt-1"><a href="<?= e(UPLOAD_URL . '/' . ltrim((string)$latestPayment['proof_path'], '/')) ?>" target="_blank" rel="noopener noreferrer">View payment proof</a></div>
+                                                <div class="small mt-1">
+                                                    <button type="button" class="btn btn-link btn-sm p-0 payment-proof-preview" data-bs-toggle="modal" data-bs-target="#paymentProofModal" data-proof-url="<?= e(UPLOAD_URL . '/' . ltrim((string)$latestPayment['proof_path'], '/')) ?>">View payment proof</button>
+                                                </div>
                                             <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-nowrap">
                                         <div class="d-flex flex-wrap gap-2">
+                                            <a class="btn btn-sm btn-outline-primary" href="admin_clients.php?edit=<?= (int)$client['id'] ?>">Edit</a>
                                             <a class="btn btn-sm btn-outline-dark" href="memorial_edit.php?clientguid=<?= e($client['client_guid']) ?>">Configure</a>
                                             <a class="btn btn-sm btn-outline-secondary" target="_blank" href="<?= e(public_memorial_url($client['client_guid'])) ?>">View</a>
+                                            <button type="button" class="btn btn-sm btn-outline-success qr-download-btn" data-qr-link="<?= e(public_memorial_url($client['client_guid'])) ?>" data-qr-filename="<?= e($clientQrDownloadName) ?>">Download QR</button>
                                         </div>
                                         <div class="d-flex flex-wrap gap-2 mt-2">
                                             <?php if ($latestPayment && ($latestPayment['status'] ?? '') === 'pending'): ?>
@@ -227,6 +288,12 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
                                                 <button class="btn btn-sm btn-outline-primary">Resend Verify</button>
                                             </form>
                                         <?php endif; ?>
+                                        <form method="post" class="d-inline-block mt-2" onsubmit="return confirm('Delete this client and all related memorial data? This cannot be undone.');">
+                                            <?= csrf_input() ?>
+                                            <input type="hidden" name="action" value="delete_client">
+                                            <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
+                                            <button class="btn btn-sm btn-outline-danger">Delete Client</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -238,6 +305,70 @@ $clients = db()->query("SELECT * FROM users WHERE role='client' ORDER BY id DESC
         </div>
     </div>
 </div>
+<div id="adminQrScratch" class="position-absolute top-0 start-0 opacity-0 pe-none" aria-hidden="true"></div>
+<div class="modal fade" id="paymentProofModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header">
+                <h2 class="modal-title h5">Payment Proof</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <img src="" alt="Payment proof preview" class="img-fluid rounded-4 w-100" id="paymentProofImage">
+                <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark btn-sm mt-3" id="paymentProofOpen">Open image in new tab</a>
+            </div>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const paymentProofModal = document.getElementById('paymentProofModal');
+if (paymentProofModal) {
+    paymentProofModal.addEventListener('show.bs.modal', function(event) {
+        const trigger = event.relatedTarget;
+        const proofUrl = trigger ? trigger.getAttribute('data-proof-url') : '';
+        const image = document.getElementById('paymentProofImage');
+        const openLink = document.getElementById('paymentProofOpen');
+
+        if (image) {
+            image.src = proofUrl || '';
+        }
+        if (openLink) {
+            openLink.href = proofUrl || '#';
+        }
+    });
+}
+
+document.querySelectorAll('.qr-download-btn').forEach((button) => {
+    button.addEventListener('click', function() {
+        const link = this.getAttribute('data-qr-link') || '';
+        const filename = this.getAttribute('data-qr-filename') || 'furever-memories-qr.png';
+        const scratch = document.getElementById('adminQrScratch');
+        if (!link || !scratch || typeof QRCode === 'undefined') {
+            return;
+        }
+
+        scratch.innerHTML = '';
+        new QRCode(scratch, { text: link, width: 512, height: 512 });
+
+        window.setTimeout(function() {
+            const canvas = scratch.querySelector('canvas');
+            const image = scratch.querySelector('img');
+            const dataUrl = canvas ? canvas.toDataURL('image/png') : (image ? image.src : '');
+            if (!dataUrl) {
+                return;
+            }
+
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }, 50);
+    });
+});
+</script>
 </body>
 </html>

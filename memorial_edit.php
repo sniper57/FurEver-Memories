@@ -13,6 +13,8 @@ if (is_admin() && $requestedGuid !== '') {
     if (!$client) {
         exit('Client not found.');
     }
+} elseif (is_admin()) {
+    redirect('admin_clients.php');
 } else {
     $client = fetch_user_by_id((int)current_user()['id']);
 }
@@ -38,6 +40,30 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf_or_fail();
     try {
+        $postedAction = trim((string)($_POST['action'] ?? 'save_memorial'));
+        if (in_array($postedAction, ['approve_message', 'delete_message'], true)) {
+            $messageId = (int)($_POST['message_id'] ?? 0);
+            $currentMemorialId = (int)($memorial['id'] ?? 0);
+            if ($currentMemorialId <= 0) {
+                throw new RuntimeException('Memorial not found for message moderation.');
+            }
+
+            if ($postedAction === 'approve_message') {
+                approve_memorial_message($messageId, $currentMemorialId);
+                log_audit('message.approve', 'Message approved from Memorial Builder.', 'memorial_message', $messageId, ['memorial_id' => $currentMemorialId]);
+                $success = 'Message approved.';
+            }
+
+            if ($postedAction === 'delete_message') {
+                delete_memorial_message($messageId, $currentMemorialId);
+                log_audit('message.delete', 'Message deleted from Memorial Builder.', 'memorial_message', $messageId, ['memorial_id' => $currentMemorialId]);
+                $success = 'Message deleted.';
+            }
+
+            $memorial = fetch_memorial_by_client_id((int)$client['id']);
+            throw new LogicException('__handled_builder_message_action__');
+        }
+
         $videoMaxMb = max(5, (int)($_POST['video_max_mb'] ?? DEFAULT_VIDEO_MAX_MB));
         $folder = $client['client_guid'];
 
@@ -242,7 +268,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'Memorial page updated successfully.';
         $memorial = fetch_memorial_by_client_id((int)$client['id']);
     } catch (Throwable $e) {
-        $error = $e->getMessage();
+        if ($e instanceof LogicException && $e->getMessage() === '__handled_builder_message_action__') {
+            // Message moderation actions are handled without saving the whole builder form.
+        } else {
+            $error = $e->getMessage();
+        }
     }
 }
 
@@ -250,6 +280,7 @@ $memorialId = (int)$memorial['id'];
 $timelines = fetch_timeline_items($memorialId);
 $gallery = fetch_gallery_items($memorialId);
 $music = fetch_music_items($memorialId);
+$moderationMessages = fetch_messages($memorialId, false);
 $publicUrl = public_memorial_url($client['client_guid']);
 $accessSummary = memorial_public_access_summary((int)$client['id'], $memorial);
 $qrDownloadName = preg_replace('/[^A-Za-z0-9]+/', '-', trim($client['full_name']));
@@ -314,7 +345,7 @@ $qrDownloadName .= '-furever-memories-qr.png';
 </head>
 <body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4 admin-shell">
+<div class="container-fluid py-4 admin-shell">
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
         <div>
             <h1 class="h3 mb-1">Memorial Builder</h1>
@@ -334,6 +365,7 @@ $qrDownloadName .= '-furever-memories-qr.png';
         <div class="col-lg-8">
             <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4">
                 <input type="hidden" name="<?= e(CSRF_TOKEN_NAME) ?>" value="<?= e(csrf_token()) ?>">
+                <input type="hidden" name="action" value="save_memorial">
                 <div class="card-body p-4">
                     <h2 class="h5">Main Page Details</h2>
                     <div class="row g-3">
@@ -500,16 +532,61 @@ $qrDownloadName .= '-furever-memories-qr.png';
                     <h2 class="h5 mb-3"><?= !empty($accessSummary['is_public']) ? 'Share / QR' : 'Preview Access' ?></h2>
                     <?php if (count_pending_messages((int)$memorial['id']) > 0): ?><div class="alert alert-warning small">You have <?= (int)count_pending_messages((int)$memorial['id']) ?> pending message(s).</div><?php endif; ?>
                     <div id="qrcode" class="mb-3"></div>
-                    <?php if (!empty($accessSummary['is_public'])): ?>
-                        <button type="button" class="btn btn-success w-100 mb-2" id="downloadQrBtn">Download QR Code</button>
-                    <?php else: ?>
+                    <button type="button" class="btn btn-success w-100 mb-2" id="downloadQrBtn">Download QR Code</button>
+                    <?php if (empty($accessSummary['is_public'])): ?>
                         <a href="subscription.php" class="btn btn-dark w-100 mb-2">Unlock Public Sharing</a>
                     <?php endif; ?>
                     <input class="form-control mb-2" readonly value="<?= e($publicUrl) ?>">
                     <button type="button" class="btn btn-outline-dark w-100 mb-2" onclick="navigator.clipboard.writeText('<?= e($publicUrl) ?>')"><?= !empty($accessSummary['is_public']) ? 'Copy Public Link' : 'Copy Preview Link' ?></button>
-                    <a href="moderation.php<?= is_admin() ? '?clientguid=' . urlencode($client['client_guid']) : '' ?>" class="btn btn-outline-primary w-100">Moderate Messages</a>
                     <?php if (empty($accessSummary['is_public'])): ?>
                         <div class="small text-muted mt-3">This memorial stays private until subscription approval or an administrator manually enables public access.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                        <h2 class="h5 mb-0">Message Moderation</h2>
+                        <span class="badge text-bg-warning"><?= (int)count_pending_messages((int)$memorial['id']) ?> pending</span>
+                    </div>
+                    <?php if ($moderationMessages): ?>
+                        <div class="d-grid gap-3">
+                            <?php foreach ($moderationMessages as $message): ?>
+                                <div class="border rounded-4 p-3 bg-white">
+                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                        <div>
+                                            <div class="fw-semibold"><?= e($message['visitor_name'] ?: 'Anonymous') ?></div>
+                                            <div class="small text-muted"><?= e(format_display_date($message['created_at'], true)) ?></div>
+                                        </div>
+                                        <span class="badge <?= !empty($message['is_approved']) ? 'text-bg-success' : 'text-bg-warning' ?>">
+                                            <?= !empty($message['is_approved']) ? 'Approved' : 'Pending' ?>
+                                        </span>
+                                    </div>
+                                    <?php if (!empty($message['photo_path'])): ?>
+                                        <button type="button" class="btn btn-link p-0 mb-2 payment-proof-preview" data-bs-toggle="modal" data-bs-target="#builderImagePreviewModal" data-proof-url="<?= e(UPLOAD_URL . '/' . ltrim((string)$message['photo_path'], '/')) ?>">Preview attached image</button>
+                                    <?php endif; ?>
+                                    <div class="small text-muted mb-3"><?= nl2br(e((string)$message['message'])) ?></div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <?php if (empty($message['is_approved'])): ?>
+                                            <form method="post" class="m-0">
+                                                <?= csrf_input() ?>
+                                                <input type="hidden" name="action" value="approve_message">
+                                                <input type="hidden" name="message_id" value="<?= (int)$message['id'] ?>">
+                                                <button class="btn btn-sm btn-success">Approve</button>
+                                            </form>
+                                        <?php endif; ?>
+                                        <form method="post" class="m-0" onsubmit="return confirm('Delete this visitor message?');">
+                                            <?= csrf_input() ?>
+                                            <input type="hidden" name="action" value="delete_message">
+                                            <input type="hidden" name="message_id" value="<?= (int)$message['id'] ?>">
+                                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <p class="small text-muted mb-0">No visitor messages yet.</p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -523,6 +600,19 @@ $qrDownloadName .= '-furever-memories-qr.png';
                         <li>Video can be uploaded or embedded via YouTube.</li>
                     </ul>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="builderImagePreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header">
+                <h2 class="modal-title h5">Image Preview</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <img src="" alt="Preview" class="img-fluid rounded-4 w-100" id="builderImagePreview">
             </div>
         </div>
     </div>
@@ -788,6 +878,17 @@ function bindTimelinePreview(scope = document) {
 
 bindTimelinePreview();
 
+const builderImagePreviewModal = document.getElementById('builderImagePreviewModal');
+if (builderImagePreviewModal) {
+    builderImagePreviewModal.addEventListener('show.bs.modal', function(event) {
+        const trigger = event.relatedTarget;
+        const image = document.getElementById('builderImagePreview');
+        if (!image || !trigger) {
+            return;
+        }
+        image.src = trigger.getAttribute('data-proof-url') || '';
+    });
+}
 
 
 </script>

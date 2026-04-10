@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $success = 'Your FurEver Memories account has been created. Please verify your email before accessing the Memorial Builder.';
         if (!$sent) {
-            $success .= ' Mail sending is not available on this server right now, so use the manual verification link below.';
+            $success .= ' Mail sending is not available on this server right now. Please try again later or contact support.';
         }
     } catch (Throwable $e) {
         $error = $e->getMessage();
@@ -105,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
                             <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
-                            <?php if ($verificationLink): ?><div class="alert alert-secondary small">Manual verification link:<br><a href="<?= e($verificationLink) ?>" target="_blank"><?= e($verificationLink) ?></a></div><?php endif; ?>
                             <form method="post" class="login-form">
                                 <?= csrf_input() ?>
                                 <div class="row g-3">

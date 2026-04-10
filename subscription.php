@@ -208,7 +208,7 @@ $paypalConfigured = paypal_is_configured();
                                     <div class="p-3 rounded-4 border bg-white h-100">
                                         <div class="small text-uppercase text-muted mb-2"><?= e($instruction['label']) ?></div>
                                         <div class="fw-semibold mb-2"><?= e($instruction['headline']) ?></div>
-                                        <p class="small text-muted mb-0"><?= e($instruction['details']) ?></p>
+                                        <p class="small text-muted mb-0"><?= nl2br(e($instruction['details'])) ?></p>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -292,7 +292,9 @@ $paypalConfigured = paypal_is_configured();
                                     <div class="small text-muted mt-2"><?= e(ucfirst(str_replace('_', ' ', (string)$payment['payment_method']))) ?> &bull; Ref <?= e($payment['reference_number']) ?></div>
                                     <div class="small text-muted">Submitted <?= e(format_display_date($payment['created_at'], true)) ?></div>
                                     <?php if (!empty($payment['proof_path'])): ?>
-                                        <div class="small mt-2"><a href="<?= e(UPLOAD_URL . '/' . ltrim((string)$payment['proof_path'], '/')) ?>" target="_blank" rel="noopener noreferrer">View uploaded payment proof</a></div>
+                                        <div class="small mt-2">
+                                            <button type="button" class="btn btn-link btn-sm p-0 payment-proof-preview" data-bs-toggle="modal" data-bs-target="#paymentProofModal" data-proof-url="<?= e(UPLOAD_URL . '/' . ltrim((string)$payment['proof_path'], '/')) ?>">View uploaded payment proof</button>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
@@ -305,6 +307,38 @@ $paypalConfigured = paypal_is_configured();
         </div>
     </div>
 </div>
+<div class="modal fade" id="paymentProofModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header">
+                <h2 class="modal-title h5">Payment Proof</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <img src="" alt="Payment proof preview" class="img-fluid rounded-4 w-100" id="paymentProofImage">
+                <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark btn-sm mt-3" id="paymentProofOpen">Open image in new tab</a>
+            </div>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const paymentProofModal = document.getElementById('paymentProofModal');
+if (paymentProofModal) {
+    paymentProofModal.addEventListener('show.bs.modal', function(event) {
+        const trigger = event.relatedTarget;
+        const proofUrl = trigger ? trigger.getAttribute('data-proof-url') : '';
+        const image = document.getElementById('paymentProofImage');
+        const openLink = document.getElementById('paymentProofOpen');
+
+        if (image) {
+            image.src = proofUrl || '';
+        }
+        if (openLink) {
+            openLink.href = proofUrl || '#';
+        }
+    });
+}
+</script>
 </body>
 </html>

@@ -27,6 +27,30 @@ if ($qrDownloadName === '') {
 $qrDownloadName .= '-furever-memories-qr.png';
 $success = flash_get('success');
 $warning = flash_get('warning');
+$dashboardStats = [
+    'views' => 0,
+    'candles' => 0,
+    'hearts' => 0,
+    'messages' => 0,
+];
+$viewTrend = [
+    'labels' => [],
+    'data' => [],
+];
+if ($targetMemorial) {
+    $memorialId = (int)$targetMemorial['id'];
+    $dashboardStats = [
+        'views' => count_memorial_views($memorialId),
+        'candles' => count_candles($memorialId),
+        'hearts' => count_hearts($memorialId),
+        'messages' => count_messages($memorialId, false),
+    ];
+    $viewTrend = memorial_daily_views($memorialId, 7);
+}
+$reactionChart = [
+    'labels' => ['Light a Candle', 'Send a Heart', 'Messages'],
+    'data' => [$dashboardStats['candles'], $dashboardStats['hearts'], $dashboardStats['messages']],
+];
 ?>
 <!doctype html>
 <html lang="en">
@@ -39,7 +63,7 @@ $warning = flash_get('warning');
 </head>
 <body class="admin-page">
 <?php include __DIR__ . '/includes/topbar.php'; ?>
-<div class="container py-4 admin-shell">
+<div class="container-fluid py-4 admin-shell">
     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
     <?php if ($warning): ?><div class="alert alert-warning"><?= e($warning) ?></div><?php endif; ?>
     <div class="row g-4">
@@ -74,6 +98,56 @@ $warning = flash_get('warning');
                             </div>
                         </div>
                     </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-xl-3">
+                            <div class="dashboard-stat-card">
+                                <span class="dashboard-stat-icon">&#128065;</span>
+                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['views']) ?></div>
+                                <div class="dashboard-stat-label">Total Visits</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-xl-3">
+                            <div class="dashboard-stat-card">
+                                <span class="dashboard-stat-icon">&#128367;</span>
+                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['candles']) ?></div>
+                                <div class="dashboard-stat-label">Light a Candle</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-xl-3">
+                            <div class="dashboard-stat-card">
+                                <span class="dashboard-stat-icon">&#9829;</span>
+                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['hearts']) ?></div>
+                                <div class="dashboard-stat-label">Send Heart</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-xl-3">
+                            <div class="dashboard-stat-card">
+                                <span class="dashboard-stat-icon">&#9993;</span>
+                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['messages']) ?></div>
+                                <div class="dashboard-stat-label">Message Wall</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-lg-7">
+                            <div class="dashboard-chart-card">
+                                <div class="dashboard-chart-heading">
+                                    <span>Visits over the last 7 days</span>
+                                </div>
+                                <canvas id="visitsChart" height="140"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="dashboard-chart-card">
+                                <div class="dashboard-chart-heading">
+                                    <span>Engagement summary</span>
+                                </div>
+                                <canvas id="engagementChart" height="140"></canvas>
+                            </div>
+                        </div>
+                    </div>
                     <?php if ($link): ?>
                         <div class="mb-3">
                             <label class="form-label"><?= !empty($accessSummary['is_public']) ? 'Public Link' : 'Private Preview Link' ?></label>
@@ -85,26 +159,20 @@ $warning = flash_get('warning');
                                 <div class="form-text">This link is currently viewable only by the client owner and administrators.</div>
                             <?php endif; ?>
                         </div>
-                        <?php if (!empty($accessSummary['is_public'])): ?>
-                            <div class="row g-3 align-items-center">
-                                <div class="col-md-4">
-                                    <img src="<?= e(qrcode_data_uri($link)) ?>" class="img-fluid rounded-3 border" alt="QR code" id="dashboardQrImage">
-                                </div>
-                                <div class="col-md-8">
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <a href="<?= e($link) ?>" target="_blank" class="btn btn-dark">Open Public Page</a>
-                                        <button type="button" class="btn btn-success" id="downloadQrBtn">Download QR Code</button>
-                                    </div>
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-4">
+                                <div id="dashboardQrcode" class="rounded-3 border bg-white p-2 d-inline-block"></div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a href="<?= e($link) ?>" target="_blank" class="btn btn-dark"><?= !empty($accessSummary['is_public']) ? 'Open Public Page' : 'Open Private Preview' ?></a>
+                                    <button type="button" class="btn btn-success" id="downloadQrBtn">Download QR Code</button>
+                                    <?php if (empty($accessSummary['is_public']) && is_client()): ?>
+                                        <a href="subscription.php" class="btn btn-outline-dark">Billing &amp; Access</a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
-                        <?php else: ?>
-                            <div class="d-flex flex-wrap gap-2">
-                                <a href="<?= e($link) ?>" target="_blank" class="btn btn-dark">Open Private Preview</a>
-                                <?php if (is_client()): ?>
-                                    <a href="subscription.php" class="btn btn-outline-dark">Billing &amp; Access</a>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -124,16 +192,31 @@ $warning = flash_get('warning');
         </div>
     </div>
 </div>
-<?php if ($link && !empty($accessSummary['is_public'])): ?>
+<?php if ($link): ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
+const dashboardQrContainer = document.getElementById('dashboardQrcode');
+if (dashboardQrContainer) {
+    new QRCode(dashboardQrContainer, { text: <?= json_encode($link) ?>, width: 220, height: 220 });
+}
+
 document.getElementById('downloadQrBtn').addEventListener('click', function () {
-    const qrImage = document.getElementById('dashboardQrImage');
-    if (!qrImage || !qrImage.src) {
+    const img = dashboardQrContainer ? dashboardQrContainer.querySelector('img') : null;
+    const canvas = dashboardQrContainer ? dashboardQrContainer.querySelector('canvas') : null;
+    let dataUrl = '';
+
+    if (img) {
+        dataUrl = img.src;
+    } else if (canvas) {
+        dataUrl = canvas.toDataURL('image/png');
+    }
+
+    if (!dataUrl) {
         return;
     }
 
     const a = document.createElement('a');
-    a.href = qrImage.src;
+    a.href = dataUrl;
     a.download = <?= json_encode($qrDownloadName) ?>;
     document.body.appendChild(a);
     a.click();
@@ -141,6 +224,58 @@ document.getElementById('downloadQrBtn').addEventListener('click', function () {
 });
 </script>
 <?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const visitChartData = <?= json_encode($viewTrend, JSON_UNESCAPED_SLASHES) ?>;
+const reactionChartData = <?= json_encode($reactionChart, JSON_UNESCAPED_SLASHES) ?>;
+
+if (window.Chart) {
+    const visitsEl = document.getElementById('visitsChart');
+    if (visitsEl) {
+        new Chart(visitsEl, {
+            type: 'line',
+            data: {
+                labels: visitChartData.labels,
+                datasets: [{
+                    label: 'Visits',
+                    data: visitChartData.data,
+                    borderColor: '#b88145',
+                    backgroundColor: 'rgba(184,129,69,.16)',
+                    borderWidth: 3,
+                    tension: .35,
+                    fill: true,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+    }
+
+    const engagementEl = document.getElementById('engagementChart');
+    if (engagementEl) {
+        new Chart(engagementEl, {
+            type: 'doughnut',
+            data: {
+                labels: reactionChartData.labels,
+                datasets: [{
+                    data: reactionChartData.data,
+                    backgroundColor: ['#d3a35f', '#9f6a43', '#ead4b8'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                cutout: '62%'
+            }
+        });
+    }
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

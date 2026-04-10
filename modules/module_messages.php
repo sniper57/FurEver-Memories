@@ -18,29 +18,51 @@
                 </div>
             </div>
             <div class="col-lg-7">
-                <div class="row g-3">
-                    <?php if (empty($messages)): ?>
-                        <div class="col-12"><div class="alert alert-secondary mb-0">No approved messages yet.</div></div>
-                    <?php endif; ?>
-                    <?php foreach ($messages as $message): ?>
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm rounded-4 h-100">
-                                <div class="card-body p-3">
-                                    <div class="d-flex align-items-center gap-3 mb-3">
-                                        <?php if (!empty($message['visitor_photo'])): ?>
-                                            <img src="<?= e(UPLOAD_URL . '/' . $message['visitor_photo']) ?>" class="visitor-photo" alt="<?= e($message['visitor_name']) ?>">
-                                        <?php endif; ?>
-                                        <div>
-                                            <div class="fw-semibold"><?= e($message['visitor_name']) ?></div>
-                                            <div class="small text-muted"><?= e(format_display_date($message['created_at'])) ?></div>
+                <?php if (empty($messages)): ?>
+                    <div class="alert alert-secondary mb-0">No approved messages yet.</div>
+                <?php else: ?>
+                    <div id="messageWallCarousel" class="carousel slide message-wall-carousel" data-bs-ride="carousel">
+                        <?php if (count($messages) > 1): ?>
+                            <div class="carousel-indicators message-wall-indicators">
+                                <?php foreach ($messages as $index => $message): ?>
+                                    <button type="button" data-bs-target="#messageWallCarousel" data-bs-slide-to="<?= (int)$index ?>" class="<?= $index === 0 ? 'active' : '' ?>" aria-current="<?= $index === 0 ? 'true' : 'false' ?>" aria-label="Message <?= (int)$index + 1 ?>"></button>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="carousel-inner">
+                            <?php foreach ($messages as $index => $message): ?>
+                                <div class="carousel-item <?= $index === 0 ? 'active' : '' ?>">
+                                    <div class="message-wall-slide">
+                                        <div class="message-wall-card">
+                                            <div class="d-flex align-items-center gap-3 mb-4">
+                                                <?php if (!empty($message['visitor_photo'])): ?>
+                                                    <img src="<?= e(UPLOAD_URL . '/' . $message['visitor_photo']) ?>" class="visitor-photo message-wall-photo" alt="<?= e($message['visitor_name']) ?>">
+                                                <?php else: ?>
+                                                    <div class="message-wall-avatar" aria-hidden="true"><?= e(mb_strtoupper(mb_substr((string)$message['visitor_name'], 0, 1))) ?></div>
+                                                <?php endif; ?>
+                                                <div>
+                                                    <div class="message-wall-name"><?= e($message['visitor_name']) ?></div>
+                                                    <div class="small text-muted"><?= e(format_display_date($message['created_at'])) ?></div>
+                                                </div>
+                                            </div>
+                                            <p class="message-wall-text mb-0"><?= nl2br(e($message['message'])) ?></p>
                                         </div>
                                     </div>
-                                    <p class="mb-0 text-secondary"><?= nl2br(e($message['message'])) ?></p>
                                 </div>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
-                    <?php endforeach; ?>
-                </div>
+                        <?php if (count($messages) > 1): ?>
+                            <button class="carousel-control-prev message-wall-control" type="button" data-bs-target="#messageWallCarousel" data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Previous</span>
+                            </button>
+                            <button class="carousel-control-next message-wall-control" type="button" data-bs-target="#messageWallCarousel" data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Next</span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

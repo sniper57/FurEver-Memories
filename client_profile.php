@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $verificationLink = $issued['url'];
             $sent = send_verification_email(fetch_user_by_id((int)$user['id']), $verificationLink);
             log_audit('client.verification.resend', 'Client requested verification resend.', 'user', (int)$user['id'], ['sent' => $sent]);
-            $success = $sent ? 'Verification email resent.' : 'Mail sending failed on this server. Manual verification link generated below.';
+                $success = $sent ? 'Verification email resent. Please check your email inbox.' : 'Mail sending failed on this server. Please try again later or contact support.';
         }
     } catch (Throwable $e) {
         $error = $e->getMessage();
@@ -84,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
                     <?php if ($warning): ?><div class="alert alert-warning"><?= e($warning) ?></div><?php endif; ?>
                     <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
-                    <?php if ($verificationLink): ?><div class="alert alert-secondary small">Manual verification link:<br><a href="<?= e($verificationLink) ?>" target="_blank"><?= e($verificationLink) ?></a></div><?php endif; ?>
                     <div class="mb-3">
                         <span class="badge <?= !empty($user['is_email_verified']) ? 'text-bg-success' : 'text-bg-warning' ?>"><?= !empty($user['is_email_verified']) ? 'Verified' : 'Pending verification' ?></span>
                     </div>
