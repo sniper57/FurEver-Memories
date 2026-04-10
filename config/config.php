@@ -5,6 +5,11 @@ define('DB_NAME', 'prod_furever_memories_db');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
+// define('DB_HOST', '127.0.0.1');
+// define('DB_NAME', 'prod_furever_memories_db');
+// define('DB_USER', 'momentoshare_user');
+// define('DB_PASS', '1nc0rr3ct57.');
+
 // ===== APP =====
 define('APP_NAME', 'FurEver Memories');
 
@@ -22,7 +27,7 @@ function app_base_url(): string
         return $scheme . '://' . $host;
     }
 
-    return 'http://furevermemories.xxxx.com';
+    return 'http://furevermemories.momentoshare.com';
 }
 
 define('BASE_URL', app_base_url());
@@ -37,14 +42,19 @@ define('BRUTE_FORCE_WINDOW_MINUTES', 15);
 define('EMAIL_VERIFICATION_EXPIRY_HOURS', 48);
 define('MAIL_FROM_NAME', 'FurEver Memories');
 define('MAIL_FROM_EMAIL', 'hello.momentoshare@gmail.com');
-define('BREVO_API_KEY', 'xxxx'); // set your Brevo API key here
+define('BREVO_API_KEY', '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'); // set your Brevo API key here
 define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 define('PASSWORD_MIN_LENGTH', 8);
 
 // ===== PAYPAL CHECKOUT =====
 define('PAYPAL_MODE', 'sandbox'); // sandbox or live
-define('PAYPAL_CLIENT_ID', 'xxx');
-define('PAYPAL_CLIENT_SECRET', 'xxxx');
+define('PAYPAL_CLIENT_ID', 'Aar_mEUYkA5wjZiCalYIW24-OF8vypGJSirQU2sgeIX1NT9umWKLAgyPBbK6juRygIXjkUzSOF-A1Owx');
+define('PAYPAL_CLIENT_SECRET', 'EG9xtmbx22F3PG-XmnVu9SnWhMW8yjVTxcDx_IBdTEyGnG3NnWyCGIIJt6DjgaR0nO97nCjppv_zE7I2');
+
+
+// define('PAYPAL_MODE', 'live'); // sandbox or live
+// define('PAYPAL_CLIENT_ID', 'ATY97tID22gAcXJEsZre7czNhSI7Bq50FZ1aqUxQfGX92t9UPFhXJKVTivFVd0N3amnsuqVrlzvzmzSb');
+// define('PAYPAL_CLIENT_SECRET', 'EPKwjbuOc1LXnVltUCxwxGqxvK63WOKgBfQPS4Fvdky6HkwxttuqtTpB8qeUJxL7pNCKlws8hPv3ZjHT');
 
 date_default_timezone_set('Asia/Manila');
 

@@ -31,6 +31,8 @@ $pageBuilderUrl = is_admin()
                 <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'dashboard.php' ? ' active' : '' ?>" href="<?= e($dashboardUrl) ?>">Dashboard</a></li>
                 <?php if (is_admin()): ?>
                     <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'admin_clients.php' ? ' active' : '' ?>" href="admin_clients.php">Clients</a></li>
+                    <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'admin_packages.php' ? ' active' : '' ?>" href="admin_packages.php">Packages</a></li>
+                    <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'admin_faqs.php' ? ' active' : '' ?>" href="admin_faqs.php">FAQs</a></li>
                     <li class="nav-item"><a class="nav-link admin-nav-link<?= $currentPage === 'audit_logs.php' ? ' active' : '' ?>" href="audit_logs.php">Audit Logs</a></li>
                 <?php endif; ?>
                 <?php if (is_client()): ?>

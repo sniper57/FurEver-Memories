@@ -251,13 +251,13 @@ $clients = fetch_all_clients();
                                         </div>
                                         <div class="d-flex flex-wrap gap-2 mt-2">
                                             <?php if ($latestPayment && ($latestPayment['status'] ?? '') === 'pending'): ?>
-                                                <form method="post" class="d-inline">
+                                                <form method="post" class="d-inline" data-swal-confirm="Approve this payment and enable public sharing for this client?" data-swal-title="Approve payment?" data-swal-confirm-text="Yes, approve">
                                                     <?= csrf_input() ?>
                                                     <input type="hidden" name="action" value="approve_payment">
                                                     <input type="hidden" name="payment_id" value="<?= (int)$latestPayment['id'] ?>">
                                                     <button class="btn btn-sm btn-success">Approve Payment</button>
                                                 </form>
-                                                <form method="post" class="d-inline">
+                                                <form method="post" class="d-inline" data-swal-confirm="Reject this payment submission?" data-swal-title="Reject payment?" data-swal-confirm-text="Yes, reject">
                                                     <?= csrf_input() ?>
                                                     <input type="hidden" name="action" value="reject_payment">
                                                     <input type="hidden" name="payment_id" value="<?= (int)$latestPayment['id'] ?>">
@@ -265,14 +265,14 @@ $clients = fetch_all_clients();
                                                 </form>
                                             <?php endif; ?>
                                             <?php if (empty($clientMemorial['public_access_override'])): ?>
-                                                <form method="post" class="d-inline">
+                                                <form method="post" class="d-inline" data-swal-confirm="Enable public access for this client's memorial?" data-swal-title="Enable public access?" data-swal-confirm-text="Yes, enable">
                                                     <?= csrf_input() ?>
                                                     <input type="hidden" name="action" value="enable_public_override">
                                                     <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
                                                     <button class="btn btn-sm btn-outline-primary">Enable Public</button>
                                                 </form>
                                             <?php else: ?>
-                                                <form method="post" class="d-inline">
+                                                <form method="post" class="d-inline" data-swal-confirm="Disable the manual public access override for this client?" data-swal-title="Disable public override?" data-swal-confirm-text="Yes, disable">
                                                     <?= csrf_input() ?>
                                                     <input type="hidden" name="action" value="disable_public_override">
                                                     <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
@@ -288,7 +288,7 @@ $clients = fetch_all_clients();
                                                 <button class="btn btn-sm btn-outline-primary">Resend Verify</button>
                                             </form>
                                         <?php endif; ?>
-                                        <form method="post" class="d-inline-block mt-2" onsubmit="return confirm('Delete this client and all related memorial data? This cannot be undone.');">
+                                        <form method="post" class="d-inline-block mt-2" data-swal-confirm="Delete this client and all related memorial data? This cannot be undone." data-swal-title="Delete client?" data-swal-confirm-text="Yes, delete client">
                                             <?= csrf_input() ?>
                                             <input type="hidden" name="action" value="delete_client">
                                             <input type="hidden" name="client_id" value="<?= (int)$client['id'] ?>">
@@ -322,6 +322,7 @@ $clients = fetch_all_clients();
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 <script>
 const paymentProofModal = document.getElementById('paymentProofModal');
 if (paymentProofModal) {

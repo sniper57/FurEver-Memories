@@ -115,8 +115,10 @@ $paypalConfigured = paypal_is_configured();
                             <div class="p-3 rounded-4 border h-100 bg-white">
                                 <div class="small text-uppercase text-muted mb-2">Current access</div>
                                 <div class="fw-semibold fs-5"><?= e($accessSummary['label']) ?></div>
-                                <?php if (!empty($subscription['ends_at']) && ($subscription['status'] ?? '') === 'active'): ?>
-                                    <div class="small text-muted mt-2">Active until <?= e(format_display_date($subscription['ends_at'])) ?></div>
+                                <?php if (($subscription['status'] ?? '') === 'active'): ?>
+                                    <div class="small text-muted mt-2">
+                                        <?= !empty($subscription['ends_at']) ? 'Active until ' . e(format_display_date($subscription['ends_at'])) : 'Active with no expiration' ?>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -127,8 +129,9 @@ $paypalConfigured = paypal_is_configured();
                                     <span class="badge <?= e(subscription_status_badge_class((string)$subscription['status'])) ?>"><?= e(ucwords(str_replace('_', ' ', (string)$subscription['status']))) ?></span>
                                     <div class="mt-2 fw-semibold"><?= e($subscription['plan_name'] ?? 'Selected plan') ?></div>
                                     <div class="small text-muted">PHP <?= e(number_format((float)($subscription['amount'] ?? 0), 2)) ?></div>
+                                    <div class="small text-muted"><?= e(subscription_plan_duration_label($subscription)) ?></div>
                                     <?php if (in_array((string)($subscription['status'] ?? ''), ['pending_payment', 'rejected'], true)): ?>
-                                        <form method="post" class="mt-3">
+                                        <form method="post" class="mt-3" data-swal-confirm="Cancel this subscription request so you can choose a different plan?" data-swal-title="Cancel current request?" data-swal-confirm-text="Yes, cancel request">
                                             <?= csrf_input() ?>
                                             <input type="hidden" name="action" value="cancel_subscription">
                                             <input type="hidden" name="subscription_id" value="<?= (int)$subscription['id'] ?>">
@@ -149,7 +152,7 @@ $paypalConfigured = paypal_is_configured();
                             <div class="col-md-4">
                                 <div class="card border-0 shadow-sm rounded-4 h-100">
                                     <div class="card-body p-4">
-                                        <div class="small text-uppercase text-muted mb-2"><?= e($plan['billing_cycle']) ?></div>
+                                        <div class="small text-uppercase text-muted mb-2"><?= e(subscription_plan_duration_label($plan)) ?></div>
                                         <h3 class="h5"><?= e($plan['name']) ?></h3>
                                         <div class="display-6 fw-bold mb-2">PHP <?= e(number_format((float)$plan['price_amount'], 2)) ?></div>
                                         <p class="text-muted small mb-4"><?= e($plan['description']) ?></p>
@@ -172,7 +175,7 @@ $paypalConfigured = paypal_is_configured();
                                 <strong>Need to change your selected plan?</strong>
                                 <div class="small text-muted">Cancel this pending request first, then choose the plan you really want to pay for.</div>
                             </div>
-                            <form method="post" class="m-0">
+                            <form method="post" class="m-0" data-swal-confirm="Cancel this pending plan so you can choose a different one?" data-swal-title="Cancel this plan?" data-swal-confirm-text="Yes, cancel plan">
                                 <?= csrf_input() ?>
                                 <input type="hidden" name="action" value="cancel_subscription">
                                 <input type="hidden" name="subscription_id" value="<?= (int)$subscription['id'] ?>">
@@ -322,6 +325,7 @@ $paypalConfigured = paypal_is_configured();
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 <script>
 const paymentProofModal = document.getElementById('paymentProofModal');
 if (paymentProofModal) {

@@ -70,8 +70,16 @@ if (!$isMemorialPage) {
     <link rel="stylesheet" href="assets/css/site.css">
 </head>
 <body class="marketing-homepage">
+<div class="marketing-loader" id="marketingLoader" aria-live="polite" aria-label="FurEver Memories is loading">
+    <div class="marketing-loader-card">
+        <img src="assets/images/logo-furever-memories.png" alt="<?= e(APP_NAME) ?> logo" class="marketing-loader-logo">
+        <div class="marketing-loader-pulse" aria-hidden="true"></div>
+        <p>Preparing a warm place for memories...</p>
+    </div>
+</div>
 <?php include __DIR__ . '/modules/module_marketing_home.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 <script src="assets/js/site.js"></script>
 <?php if ($showMarketingLoginModal): ?>
 <script>
@@ -238,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             db()->prepare('INSERT INTO memorial_reactions (memorial_page_id, reaction_type, visitor_name, visitor_ip_hash, user_agent, created_at) VALUES (?,?,?,?,?,?)')
                 ->execute([$memorialId, $_POST['action'], $visitorName, hash_ip(client_ip()), user_agent(), now()]);
             log_audit('public.reaction.' . $_POST['action'], 'Public visitor sent reaction.', 'memorial_page', $memorialId, ['visitor_name' => $visitorName]);
+            flash_set('success', $_POST['action'] === 'candle' ? 'Thank you for lighting a candle.' : 'Thank you for sending a heart.');
             redirect(public_memorial_url($clientGuid) . '#tribute-actions');
         }
     } catch (Throwable $e) {
@@ -263,6 +272,19 @@ $bgLandscape = !empty($memorial['bg_image_landscape']) ? UPLOAD_URL . '/' . $mem
 $publicUrl = public_memorial_url($clientGuid);
 $flashSuccess = flash_get('success');
 $supportSuccess = flash_get('support_success');
+$publicToasts = [];
+if ($flashSuccess !== '') {
+    $publicToasts[] = ['type' => 'success', 'title' => 'Memory submitted', 'message' => $flashSuccess];
+}
+if ($messageError !== '') {
+    $publicToasts[] = ['type' => 'error', 'title' => 'Message wall', 'message' => $messageError];
+}
+if ($supportSuccess !== '') {
+    $publicToasts[] = ['type' => 'success', 'title' => 'Support request', 'message' => $supportSuccess];
+}
+if ($supportError !== '') {
+    $publicToasts[] = ['type' => 'error', 'title' => 'Support request', 'message' => $supportError];
+}
 $ownerDashboardUrl = 'dashboard.php';
 $billingUrl = 'subscription.php';
 ?>
@@ -278,14 +300,6 @@ $billingUrl = 'subscription.php';
     <style>:root{--bg-portrait:url('<?= e($bgPortrait) ?>');--bg-landscape:url('<?= e($bgLandscape) ?>');}</style>
 </head>
 <body>
-<?php if ($flashSuccess || $messageError || $supportSuccess || $supportError): ?>
-<div class="container pt-3">
-    <?php if ($flashSuccess): ?><div class="alert alert-success"><?= e($flashSuccess) ?></div><?php endif; ?>
-    <?php if ($messageError): ?><div class="alert alert-danger"><?= e($messageError) ?></div><?php endif; ?>
-    <?php if ($supportSuccess): ?><div class="alert alert-success"><?= e($supportSuccess) ?></div><?php endif; ?>
-    <?php if ($supportError): ?><div class="alert alert-danger"><?= e($supportError) ?></div><?php endif; ?>
-</div>
-<?php endif; ?>
 <?php if ($isPrivatePreview): ?>
 <div class="container pt-3">
     <div class="alert alert-warning border-0 shadow-sm rounded-4">
@@ -347,6 +361,10 @@ import PhotoSwipeLightbox from 'https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/di
 const lightbox = new PhotoSwipeLightbox({gallery: '#gallery-photoswipe', children: 'a', pswpModule: () => import('https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.esm.min.js')});
 lightbox.init();
 </script>
+<script>
+window.FM_TOASTS = <?= json_encode($publicToasts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+</script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 <script src="assets/js/site.js"></script>
 </body>
 </html>
