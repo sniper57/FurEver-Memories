@@ -5,11 +5,6 @@ define('DB_NAME', 'prod_furever_memories_db');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
-// define('DB_HOST', '127.0.0.1');
-// define('DB_NAME', 'prod_furever_memories_db');
-// define('DB_USER', 'momentoshare_user');
-// define('DB_PASS', '1nc0rr3ct57.');
-
 // ===== APP =====
 define('APP_NAME', 'FurEver Memories');
 
@@ -48,13 +43,9 @@ define('PASSWORD_MIN_LENGTH', 8);
 
 // ===== PAYPAL CHECKOUT =====
 define('PAYPAL_MODE', 'sandbox'); // sandbox or live
-define('PAYPAL_CLIENT_ID', 'Aar_mEUYkA5wjZiCalYIW24-OF8vypGJSirQU2sgeIX1NT9umWKLAgyPBbK6juRygIXjkUzSOF-A1Owx');
-define('PAYPAL_CLIENT_SECRET', 'EG9xtmbx22F3PG-XmnVu9SnWhMW8yjVTxcDx_IBdTEyGnG3NnWyCGIIJt6DjgaR0nO97nCjppv_zE7I2');
+define('PAYPAL_CLIENT_ID', 'xxxx');
+define('PAYPAL_CLIENT_SECRET', 'xxxx');
 
-
-// define('PAYPAL_MODE', 'live'); // sandbox or live
-// define('PAYPAL_CLIENT_ID', 'ATY97tID22gAcXJEsZre7czNhSI7Bq50FZ1aqUxQfGX92t9UPFhXJKVTivFVd0N3amnsuqVrlzvzmzSb');
-// define('PAYPAL_CLIENT_SECRET', 'EPKwjbuOc1LXnVltUCxwxGqxvK63WOKgBfQPS4Fvdky6HkwxttuqtTpB8qeUJxL7pNCKlws8hPv3ZjHT');
 
 date_default_timezone_set('Asia/Manila');
 
