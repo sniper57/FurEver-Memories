@@ -46,12 +46,104 @@ body::after{
     background:linear-gradient(180deg, #fbf7f1 0%, #f3ebe1 100%);
 }
 
+.marketing-homepage.is-loading{
+    overflow:hidden;
+}
+
 .marketing-homepage::before,
 .marketing-homepage::after{
-    display:none;
+    content:"";
+    position:fixed;
+    pointer-events:none;
+    z-index:0;
+    display:block;
+    opacity:.14;
+    filter:blur(28px);
+    border-radius:999px;
+}
+
+.marketing-homepage::before{
+    width:min(560px, 64vw);
+    height:min(360px, 42vw);
+    right:-160px;
+    top:90px;
+    background:#c89541;
+}
+
+.marketing-homepage::after{
+    width:min(440px, 58vw);
+    height:min(440px, 58vw);
+    left:-170px;
+    bottom:80px;
+    background:#8b5d35;
+}
+
+.marketing-loader{
+    position:fixed;
+    inset:0;
+    z-index:3000;
+    display:grid;
+    place-items:center;
+    background:
+        radial-gradient(circle at top right, rgba(200,149,65,.25), transparent 30%),
+        linear-gradient(135deg, #fff9f0, #efe2d2);
+    transition:opacity .55s ease, visibility .55s ease;
+}
+
+.marketing-loader.is-hidden{
+    opacity:0;
+    visibility:hidden;
+}
+
+.marketing-loader-card{
+    position:relative;
+    width:min(340px, calc(100vw - 48px));
+    padding:36px 28px;
+    border-radius:32px;
+    text-align:center;
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(124,83,42,.14);
+    box-shadow:0 30px 80px rgba(74,56,34,.18);
+    backdrop-filter:blur(18px);
+}
+
+.marketing-loader-logo{
+    width:min(138px, 36vw);
+    height:auto;
+    object-fit:contain;
+    animation:loaderFloat 1.9s ease-in-out infinite;
+}
+
+.marketing-loader-pulse{
+    width:76px;
+    height:6px;
+    border-radius:999px;
+    margin:22px auto 16px;
+    background:linear-gradient(90deg, transparent, #c89541, transparent);
+    background-size:220% 100%;
+    animation:loaderShimmer 1.15s linear infinite;
+}
+
+.marketing-loader-card p{
+    margin:0;
+    color:#5b4a38;
+    font-weight:700;
+    letter-spacing:.02em;
+}
+
+@keyframes loaderFloat{
+    0%,100%{ transform:translateY(0) scale(1); }
+    50%{ transform:translateY(-8px) scale(1.025); }
+}
+
+@keyframes loaderShimmer{
+    from{ background-position:220% 0; }
+    to{ background-position:-220% 0; }
 }
 
 .marketing-navbar{
+    position:relative;
+    z-index:2;
     padding:18px 0;
     background:rgba(251,247,241,.85);
     backdrop-filter:blur(10px);
@@ -83,6 +175,49 @@ body::after{
         radial-gradient(circle at top right, rgba(200,149,65,.16), transparent 28%),
         radial-gradient(circle at bottom left, rgba(125,154,171,.18), transparent 34%);
     pointer-events:none;
+}
+
+.marketing-hero > .container{
+    position:relative;
+    z-index:1;
+}
+
+.marketing-pet-silhouette{
+    position:absolute;
+    right:clamp(-120px, -3vw, -36px);
+    bottom:18px;
+    width:min(720px, 58vw);
+    color:#33291f;
+    opacity:.13;
+    pointer-events:none;
+    z-index:0;
+    transform:rotate(-1deg);
+}
+
+.marketing-pet-silhouette svg{
+    display:block;
+    width:100%;
+    height:auto;
+    overflow:visible;
+    filter:drop-shadow(0 28px 46px rgba(73,53,32,.16));
+}
+
+.pet-silhouette-shadow{
+    fill:#2a211a;
+    opacity:.18;
+    filter:blur(8px);
+}
+
+.pet-silhouette-dog,
+.pet-silhouette-dog-ear,
+.pet-silhouette-cat,
+.pet-silhouette-cat-tail{
+    fill:currentColor;
+}
+
+.pet-silhouette-dog-ear,
+.pet-silhouette-cat-tail{
+    opacity:.94;
 }
 
 .marketing-hero-copy,
@@ -284,6 +419,20 @@ body::after{
     color:#8d6b3c;
     font-weight:700;
     margin-bottom:12px;
+}
+
+.marketing-package-price{
+    color:#2b2c30;
+    font-size:1.65rem;
+    font-weight:800;
+    letter-spacing:-.04em;
+    margin-bottom:12px;
+}
+
+.marketing-package-card p{
+    color:#62707c;
+    line-height:1.72;
+    margin-bottom:0;
 }
 
 .marketing-package-card--featured{
@@ -1878,6 +2027,13 @@ body::after{
 }
 
 @media (max-width: 991.98px){
+    .marketing-pet-silhouette{
+        right:-34vw;
+        bottom:8px;
+        width:96vw;
+        opacity:.08;
+    }
+
     .marketing-login-close{
         top:18px;
         right:18px;
@@ -1915,6 +2071,13 @@ body::after{
 }
 
 @media (max-width:575.98px){
+    .marketing-pet-silhouette{
+        right:-46vw;
+        bottom:0;
+        width:126vw;
+        opacity:.065;
+    }
+
     .hero-logo{
         width:25vw;
         max-width:108px;

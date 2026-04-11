@@ -575,7 +575,7 @@ $qrDownloadName .= '-furever-memories-qr.png';
                                                 <button class="btn btn-sm btn-success">Approve</button>
                                             </form>
                                         <?php endif; ?>
-                                        <form method="post" class="m-0" onsubmit="return confirm('Delete this visitor message?');">
+                                        <form method="post" class="m-0" data-swal-confirm="Delete this visitor message?" data-swal-title="Delete message?" data-swal-confirm-text="Yes, delete message">
                                             <?= csrf_input() ?>
                                             <input type="hidden" name="action" value="delete_message">
                                             <input type="hidden" name="message_id" value="<?= (int)$message['id'] ?>">
@@ -621,6 +621,7 @@ $qrDownloadName .= '-furever-memories-qr.png';
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 <script>
 new QRCode(document.getElementById('qrcode'), { text: <?= json_encode($publicUrl) ?>, width: 180, height: 180 });
 

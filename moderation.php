@@ -80,7 +80,7 @@ $messages = fetch_messages($memorialId, false);
                                 <?php if (empty($row['is_approved'])): ?>
                                 <form method="post" class="d-inline"><?= csrf_input() ?><input type="hidden" name="action" value="approve"><input type="hidden" name="message_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-sm btn-outline-success">Approve</button></form>
                                 <?php endif; ?>
-                                <form method="post" class="d-inline"><?= csrf_input() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="message_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form>
+                                <form method="post" class="d-inline" data-swal-confirm="Delete this visitor message?" data-swal-title="Delete message?" data-swal-confirm-text="Yes, delete message"><?= csrf_input() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="message_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -91,5 +91,6 @@ $messages = fetch_messages($memorialId, false);
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 </body>
 </html>
