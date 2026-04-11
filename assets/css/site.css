@@ -183,41 +183,21 @@ body::after{
 }
 
 .marketing-pet-silhouette{
-    position:absolute;
+    position:fixed;
     right:clamp(-120px, -3vw, -36px);
-    bottom:18px;
+    bottom:clamp(22px, 7vh, 96px);
     width:min(720px, 58vw);
-    color:#33291f;
-    opacity:.13;
+    opacity:.14;
     pointer-events:none;
     z-index:0;
     transform:rotate(-1deg);
 }
 
-.marketing-pet-silhouette svg{
+.marketing-pet-silhouette img{
     display:block;
     width:100%;
     height:auto;
-    overflow:visible;
     filter:drop-shadow(0 28px 46px rgba(73,53,32,.16));
-}
-
-.pet-silhouette-shadow{
-    fill:#2a211a;
-    opacity:.18;
-    filter:blur(8px);
-}
-
-.pet-silhouette-dog,
-.pet-silhouette-dog-ear,
-.pet-silhouette-cat,
-.pet-silhouette-cat-tail{
-    fill:currentColor;
-}
-
-.pet-silhouette-dog-ear,
-.pet-silhouette-cat-tail{
-    opacity:.94;
 }
 
 .marketing-hero-copy,
@@ -2029,7 +2009,7 @@ body::after{
 @media (max-width: 991.98px){
     .marketing-pet-silhouette{
         right:-34vw;
-        bottom:8px;
+        bottom:28px;
         width:96vw;
         opacity:.08;
     }
@@ -2073,7 +2053,7 @@ body::after{
 @media (max-width:575.98px){
     .marketing-pet-silhouette{
         right:-46vw;
-        bottom:0;
+        bottom:18px;
         width:126vw;
         opacity:.065;
     }
