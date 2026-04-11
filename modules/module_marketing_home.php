@@ -2,6 +2,7 @@
 $marketingTitle = 'FurEver Memories';
 $marketingTagline = 'Forever in our hearts';
 $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.png';
+$marketingPetSilhouette = rtrim(BASE_URL, '/') . '/assets/images/pet-companion-silhouette.svg';
 $marketingPlans = fetch_subscription_plans(true);
 $marketingFaqs = fetch_marketing_faqs(true);
 ?>
@@ -31,13 +32,7 @@ $marketingFaqs = fetch_marketing_faqs(true);
 
     <section class="marketing-hero">
         <div class="marketing-pet-silhouette" aria-hidden="true">
-            <svg viewBox="0 0 720 520" role="img" focusable="false">
-                <ellipse class="pet-silhouette-shadow" cx="358" cy="445" rx="304" ry="34"></ellipse>
-                <path class="pet-silhouette-dog" d="M76 431c38-21 95-27 147-23-19-36-33-76-31-126 2-50 16-86 29-116-21-18-26-38-12-54 14-17 36-17 54-12 27-24 73-28 108-8 29-1 48 13 48 38 21 15 28 41 12 61-14 18-39 26-69 22-13 34-5 74 6 113 11 42 3 72-19 92 34-2 66 1 86 13-48 17-139 19-205 10-69 7-122 4-154-10z"></path>
-                <path class="pet-silhouette-dog-ear" d="M214 132c-19 13-36 28-44 46-8 17-4 35-12 50-13-23-10-50 2-73 11-22 29-37 54-23z"></path>
-                <path class="pet-silhouette-cat" d="M438 433c-27-6-42-29-42-65 0-40 20-69 33-100-16-11-29-30-25-47 17 3 34 13 47 12 10-31 22-49 34-49s25 20 35 52c18 12 26 31 18 51 26 39 36 89 26 132 40 3 65-20 75-65 7-30 22-57 40-54 16 3 17 25 7 52-15 41-39 73-48 87-49 8-142 9-200-6z"></path>
-                <path class="pet-silhouette-cat-tail" d="M587 430c33-20 47-51 50-88 3-33 15-62 35-66 19-4 30 15 22 41-12 41-48 76-56 119-16 4-34 1-51-6z"></path>
-            </svg>
+            <img src="<?= e($marketingPetSilhouette) ?>" alt="">
         </div>
         <div class="container">
             <div class="row align-items-center g-5">
