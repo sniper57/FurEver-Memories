@@ -817,11 +817,249 @@ function fetch_subscription_plans(bool $activeOnly = true): array
     return db()->query($sql)->fetchAll();
 }
 
+function subscription_plan_duration_label(array $plan): string
+{
+    $days = (int)($plan['duration_days'] ?? 0);
+    if ($days <= 0) {
+        return 'No expiration';
+    }
+
+    return $days . ' day' . ($days === 1 ? '' : 's');
+}
+
+function subscription_plan_billing_cycle_from_days(int $durationDays): string
+{
+    if ($durationDays <= 0) {
+        return 'no_expiration';
+    }
+
+    return $durationDays . '_days';
+}
+
+function subscription_plan_slug(string $name): string
+{
+    $slug = strtolower(trim((string)preg_replace('/[^A-Za-z0-9]+/', '-', $name), '-'));
+    return $slug !== '' ? $slug : 'package-' . date('YmdHis');
+}
+
 function fetch_subscription_plan_by_id(int $planId): ?array
 {
     $stmt = db()->prepare('SELECT * FROM subscription_plans WHERE id = ? LIMIT 1');
     $stmt->execute([$planId]);
     return $stmt->fetch() ?: null;
+}
+
+function subscription_plan_slug_exists(string $slug, int $excludePlanId = 0): bool
+{
+    $stmt = db()->prepare('SELECT COUNT(*) FROM subscription_plans WHERE slug = ? AND id <> ?');
+    $stmt->execute([$slug, $excludePlanId]);
+    return (int)$stmt->fetchColumn() > 0;
+}
+
+function unique_subscription_plan_slug(string $name, int $excludePlanId = 0): string
+{
+    $baseSlug = subscription_plan_slug($name);
+    $slug = $baseSlug;
+    $suffix = 2;
+
+    while (subscription_plan_slug_exists($slug, $excludePlanId)) {
+        $slug = $baseSlug . '-' . $suffix;
+        $suffix++;
+    }
+
+    return $slug;
+}
+
+function save_subscription_plan(array $input): array
+{
+    $planId = (int)($input['plan_id'] ?? 0);
+    $name = trim((string)($input['name'] ?? ''));
+    $description = trim((string)($input['description'] ?? ''));
+    $durationMode = trim((string)($input['duration_mode'] ?? 'days'));
+    $durationDays = $durationMode === 'no_expiration' ? 0 : (int)($input['duration_days'] ?? 0);
+    $priceAmount = (float)($input['price_amount'] ?? 0);
+    $currency = strtoupper(trim((string)($input['currency'] ?? 'PHP')));
+    $sortOrder = (int)($input['sort_order'] ?? 1);
+    $isActive = !empty($input['is_active']) ? 1 : 0;
+
+    if ($name === '') {
+        throw new RuntimeException('Package name is required.');
+    }
+
+    if ($description === '') {
+        throw new RuntimeException('Package inclusion/description is required.');
+    }
+
+    if ($durationMode !== 'no_expiration' && $durationDays <= 0) {
+        throw new RuntimeException('Subscription duration must be at least 1 day, or choose No expiration.');
+    }
+
+    if ($priceAmount < 0) {
+        throw new RuntimeException('Package price cannot be negative.');
+    }
+
+    if ($currency === '') {
+        $currency = 'PHP';
+    }
+
+    $billingCycle = subscription_plan_billing_cycle_from_days($durationDays);
+
+    if ($planId > 0) {
+        $existing = fetch_subscription_plan_by_id($planId);
+        if (!$existing) {
+            throw new RuntimeException('Package not found.');
+        }
+
+        $slug = unique_subscription_plan_slug($name, $planId);
+        db()->prepare('UPDATE subscription_plans SET slug = ?, name = ?, description = ?, billing_cycle = ?, duration_days = ?, price_amount = ?, currency = ?, is_active = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+            ->execute([$slug, $name, $description, $billingCycle, $durationDays, $priceAmount, $currency, $isActive, $sortOrder, now(), $planId]);
+        return fetch_subscription_plan_by_id($planId) ?: [];
+    }
+
+    $slug = unique_subscription_plan_slug($name);
+    db()->prepare('INSERT INTO subscription_plans (slug, name, description, billing_cycle, duration_days, price_amount, currency, is_active, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$slug, $name, $description, $billingCycle, $durationDays, $priceAmount, $currency, $isActive, $sortOrder, now(), now()]);
+
+    return fetch_subscription_plan_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function subscription_plan_usage_count(int $planId): int
+{
+    $stmt = db()->prepare('SELECT COUNT(*) FROM client_subscriptions WHERE plan_id = ?');
+    $stmt->execute([$planId]);
+    return (int)$stmt->fetchColumn();
+}
+
+function delete_subscription_plan(int $planId): void
+{
+    $plan = fetch_subscription_plan_by_id($planId);
+    if (!$plan) {
+        throw new RuntimeException('Package not found.');
+    }
+
+    if (subscription_plan_usage_count($planId) > 0) {
+        throw new RuntimeException('This package already has subscription history. Disable it instead of deleting it.');
+    }
+
+    db()->prepare('DELETE FROM subscription_plans WHERE id = ?')->execute([$planId]);
+}
+
+function default_marketing_faqs(): array
+{
+    return [
+        [
+            'question' => 'Can I include photos, videos, stories, and music on one memorial page?',
+            'answer' => 'Yes. FurEver Memories is designed for multimedia remembrance, so families can preserve photos, tribute stories, timelines, guest messages, videos, and background music in one place.',
+            'sort_order' => 1,
+        ],
+        [
+            'question' => 'Can family and friends add messages and reactions?',
+            'answer' => 'Yes. Loved ones can visit the memorial page, light a candle, send hearts, and leave messages that the page owner can review and manage.',
+            'sort_order' => 2,
+        ],
+        [
+            'question' => 'What makes FurEver Memories feel different from a sad memorial site?',
+            'answer' => 'Our visual language is warm, loving, peaceful, and celebratory. We focus on honoring life and preserving joy, not creating a cold funeral atmosphere.',
+            'sort_order' => 3,
+        ],
+        [
+            'question' => 'Can this also connect to printed products and QR codes?',
+            'answer' => 'Yes. The brand is built for both digital and physical remembrance, from QR memory galleries to printed keepsakes and tribute products.',
+            'sort_order' => 4,
+        ],
+    ];
+}
+
+function ensure_marketing_faqs_table(): void
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+
+    db()->exec("CREATE TABLE IF NOT EXISTS marketing_faqs (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        question VARCHAR(255) NOT NULL,
+        answer TEXT NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        sort_order INT NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_marketing_faqs_active (is_active, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    $count = (int)db()->query('SELECT COUNT(*) FROM marketing_faqs')->fetchColumn();
+    if ($count <= 0) {
+        $stmt = db()->prepare('INSERT INTO marketing_faqs (question, answer, is_active, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?)');
+        foreach (default_marketing_faqs() as $faq) {
+            $stmt->execute([$faq['question'], $faq['answer'], 1, $faq['sort_order'], now(), now()]);
+        }
+    }
+
+    $ensured = true;
+}
+
+function fetch_marketing_faqs(bool $activeOnly = true): array
+{
+    ensure_marketing_faqs_table();
+    $sql = 'SELECT * FROM marketing_faqs';
+    if ($activeOnly) {
+        $sql .= ' WHERE is_active = 1';
+    }
+    $sql .= ' ORDER BY sort_order ASC, id ASC';
+    return db()->query($sql)->fetchAll();
+}
+
+function fetch_marketing_faq_by_id(int $faqId): ?array
+{
+    ensure_marketing_faqs_table();
+    $stmt = db()->prepare('SELECT * FROM marketing_faqs WHERE id = ? LIMIT 1');
+    $stmt->execute([$faqId]);
+    return $stmt->fetch() ?: null;
+}
+
+function save_marketing_faq(array $input): array
+{
+    ensure_marketing_faqs_table();
+    $faqId = (int)($input['faq_id'] ?? 0);
+    $question = trim((string)($input['question'] ?? ''));
+    $answer = trim((string)($input['answer'] ?? ''));
+    $sortOrder = (int)($input['sort_order'] ?? 1);
+    $isActive = !empty($input['is_active']) ? 1 : 0;
+
+    if ($question === '') {
+        throw new RuntimeException('FAQ question is required.');
+    }
+
+    if ($answer === '') {
+        throw new RuntimeException('FAQ answer is required.');
+    }
+
+    if ($faqId > 0) {
+        if (!fetch_marketing_faq_by_id($faqId)) {
+            throw new RuntimeException('FAQ item not found.');
+        }
+
+        db()->prepare('UPDATE marketing_faqs SET question = ?, answer = ?, is_active = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+            ->execute([$question, $answer, $isActive, $sortOrder, now(), $faqId]);
+        return fetch_marketing_faq_by_id($faqId) ?: [];
+    }
+
+    db()->prepare('INSERT INTO marketing_faqs (question, answer, is_active, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?)')
+        ->execute([$question, $answer, $isActive, $sortOrder, now(), now()]);
+
+    return fetch_marketing_faq_by_id((int)db()->lastInsertId()) ?: [];
+}
+
+function delete_marketing_faq(int $faqId): void
+{
+    ensure_marketing_faqs_table();
+    if (!fetch_marketing_faq_by_id($faqId)) {
+        throw new RuntimeException('FAQ item not found.');
+    }
+
+    db()->prepare('DELETE FROM marketing_faqs WHERE id = ?')->execute([$faqId]);
 }
 
 function fetch_latest_subscription_for_user(int $userId): ?array
@@ -1296,11 +1534,12 @@ function submit_subscription_payment(int $subscriptionId, int $userId, array $in
             now(),
             now(),
         ]);
+    $paymentId = (int)db()->lastInsertId();
 
     db()->prepare('UPDATE client_subscriptions SET status = ?, payment_method = ?, updated_at = ? WHERE id = ?')
         ->execute(['pending_review', $method, now(), $subscriptionId]);
 
-    return fetch_subscription_payment_by_id((int)db()->lastInsertId()) ?: [];
+    return fetch_subscription_payment_by_id($paymentId) ?: [];
 }
 
 function approve_subscription_payment(int $paymentId, int $reviewerId, string $reviewNotes = ''): void
@@ -1313,7 +1552,11 @@ function approve_subscription_payment(int $paymentId, int $reviewerId, string $r
     $reviewerValue = $reviewerId > 0 ? $reviewerId : null;
 
     $startsAt = new DateTime();
-    $endsAt = (clone $startsAt)->modify('+' . max(1, (int)$payment['duration_days']) . ' days');
+    $durationDays = (int)($payment['duration_days'] ?? 0);
+    $endsAtValue = null;
+    if ($durationDays > 0) {
+        $endsAtValue = (clone $startsAt)->modify('+' . $durationDays . ' days')->format('Y-m-d H:i:s');
+    }
 
     db()->prepare('UPDATE subscription_payments SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_notes = ?, updated_at = ? WHERE id = ?')
         ->execute(['approved', $reviewerValue, now(), $reviewNotes !== '' ? $reviewNotes : null, now(), $paymentId]);
@@ -1322,7 +1565,7 @@ function approve_subscription_payment(int $paymentId, int $reviewerId, string $r
         ->execute([
             'active',
             $startsAt->format('Y-m-d H:i:s'),
-            $endsAt->format('Y-m-d H:i:s'),
+            $endsAtValue,
             now(),
             $reviewerValue,
             $reviewNotes !== '' ? $reviewNotes : null,
