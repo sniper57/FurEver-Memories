@@ -2,6 +2,8 @@
 $marketingTitle = 'FurEver Memories';
 $marketingTagline = 'Forever in our hearts';
 $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.png';
+$marketingPlans = fetch_subscription_plans(true);
+$marketingFaqs = fetch_marketing_faqs(true);
 ?>
 <header class="marketing-header">
     <nav class="navbar navbar-expand-lg marketing-navbar">
@@ -17,6 +19,7 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                 <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-3">
                     <li class="nav-item"><a class="nav-link" href="#how-it-works">How It Works</a></li>
                     <li class="nav-item"><a class="nav-link" href="#products">Products</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#pricing">Pricing</a></li>
                     <li class="nav-item"><a class="nav-link" href="#why-furever">Why FurEver</a></li>
                     <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                     <li class="nav-item"><button type="button" class="btn btn-outline-dark rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#marketingLoginModal">Sign In</button></li>
@@ -27,6 +30,15 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
     </nav>
 
     <section class="marketing-hero">
+        <div class="marketing-pet-silhouette" aria-hidden="true">
+            <svg viewBox="0 0 720 520" role="img" focusable="false">
+                <ellipse class="pet-silhouette-shadow" cx="358" cy="445" rx="304" ry="34"></ellipse>
+                <path class="pet-silhouette-dog" d="M76 431c38-21 95-27 147-23-19-36-33-76-31-126 2-50 16-86 29-116-21-18-26-38-12-54 14-17 36-17 54-12 27-24 73-28 108-8 29-1 48 13 48 38 21 15 28 41 12 61-14 18-39 26-69 22-13 34-5 74 6 113 11 42 3 72-19 92 34-2 66 1 86 13-48 17-139 19-205 10-69 7-122 4-154-10z"></path>
+                <path class="pet-silhouette-dog-ear" d="M214 132c-19 13-36 28-44 46-8 17-4 35-12 50-13-23-10-50 2-73 11-22 29-37 54-23z"></path>
+                <path class="pet-silhouette-cat" d="M438 433c-27-6-42-29-42-65 0-40 20-69 33-100-16-11-29-30-25-47 17 3 34 13 47 12 10-31 22-49 34-49s25 20 35 52c18 12 26 31 18 51 26 39 36 89 26 132 40 3 65-20 75-65 7-30 22-57 40-54 16 3 17 25 7 52-15 41-39 73-48 87-49 8-142 9-200-6z"></path>
+                <path class="pet-silhouette-cat-tail" d="M587 430c33-20 47-51 50-88 3-33 15-62 35-66 19-4 30 15 22 41-12 41-48 76-56 119-16 4-34 1-51-6z"></path>
+            </svg>
+        </div>
         <div class="container">
             <div class="row align-items-center g-5">
                 <div class="col-lg-6">
@@ -188,47 +200,35 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
         </div>
     </section>
 
-    <section class="marketing-section marketing-section-dark">
+    <section class="marketing-section marketing-section-dark" id="pricing">
         <div class="container">
             <div class="marketing-section-heading text-center">
-                <span class="marketing-kicker">Package Ideas</span>
-                <h2>Premium, accessible bundles for every kind of remembrance</h2>
-                <p>Designed to help FurEver Memories become the #1 modern pet memorial brand in the Philippines.</p>
+                <span class="marketing-kicker">Pricing Packages</span>
+                <h2>Choose the access package that fits your family's remembrance journey</h2>
+                <p>Every active package is managed by the FurEver Memories admin team and unlocks public sharing after payment approval.</p>
             </div>
             <div class="row g-4">
-                <div class="col-lg-4">
-                    <div class="marketing-package-card">
-                        <span class="marketing-package-tier">Classic Pawprint</span>
-                        <h3>For first keepsakes</h3>
-                        <ul>
-                            <li>Digital memorial page</li>
-                            <li>Photo gallery and tribute story</li>
-                            <li>Shareable QR link</li>
-                        </ul>
+                <?php foreach ($marketingPlans as $idx => $plan): ?>
+                    <div class="col-lg-4">
+                        <div class="marketing-package-card<?= $idx === 1 ? ' marketing-package-card--featured' : '' ?>">
+                            <span class="marketing-package-tier"><?= e(subscription_plan_duration_label($plan)) ?></span>
+                            <h3><?= e($plan['name']) ?></h3>
+                            <div class="marketing-package-price"><?= e($plan['currency']) ?> <?= e(number_format((float)$plan['price_amount'], 2)) ?></div>
+                            <p><?= e($plan['description']) ?></p>
+                            <a href="register.php" class="btn btn-light rounded-pill px-4 mt-3">Create a Memorial</a>
+                        </div>
                     </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="marketing-package-card marketing-package-card--featured">
-                        <span class="marketing-package-tier">Golden Legacy</span>
-                        <h3>For families who want everything in one place</h3>
-                        <ul>
-                            <li>Premium memorial page with timeline and music</li>
-                            <li>QR frame or keepsake insert</li>
-                            <li>Tribute video slideshow</li>
-                        </ul>
+                <?php endforeach; ?>
+                <?php if (!$marketingPlans): ?>
+                    <div class="col-12">
+                        <div class="marketing-package-card text-center">
+                            <span class="marketing-package-tier">Packages coming soon</span>
+                            <h3>Custom memorial access</h3>
+                            <p>Our team is preparing new packages. You can still create an account and build your memorial in private preview mode.</p>
+                            <a href="register.php" class="btn btn-light rounded-pill px-4 mt-3">Create a Memorial</a>
+                        </div>
                     </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="marketing-package-card">
-                        <span class="marketing-package-tier">Forever Home</span>
-                        <h3>For heirloom remembrance</h3>
-                        <ul>
-                            <li>All Golden Legacy inclusions</li>
-                            <li>Printed video book or luxury frame</li>
-                            <li>Priority design assistance</li>
-                        </ul>
-                    </div>
-                </div>
+                <?php endif; ?>
             </div>
         </div>
     </section>
@@ -269,22 +269,18 @@ $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.pn
                 <h2>Everything pet parents usually ask before they begin</h2>
             </div>
             <div class="marketing-faq-list">
-                <details class="marketing-faq-item" open>
-                    <summary>Can I include photos, videos, stories, and music on one memorial page?</summary>
-                    <p>Yes. FurEver Memories is designed for multimedia remembrance, so families can preserve photos, tribute stories, timelines, guest messages, videos, and background music in one place.</p>
-                </details>
-                <details class="marketing-faq-item">
-                    <summary>Can family and friends add messages and reactions?</summary>
-                    <p>Yes. Loved ones can visit the memorial page, light a candle, send hearts, and leave messages that the page owner can review and manage.</p>
-                </details>
-                <details class="marketing-faq-item">
-                    <summary>What makes FurEver Memories feel different from a sad memorial site?</summary>
-                    <p>Our visual language is warm, loving, peaceful, and celebratory. We focus on honoring life and preserving joy, not creating a cold funeral atmosphere.</p>
-                </details>
-                <details class="marketing-faq-item">
-                    <summary>Can this also connect to printed products and QR codes?</summary>
-                    <p>Yes. The brand is built for both digital and physical remembrance, from QR memory galleries to printed keepsakes and tribute products.</p>
-                </details>
+                <?php foreach ($marketingFaqs as $idx => $faq): ?>
+                    <details class="marketing-faq-item" <?= $idx === 0 ? 'open' : '' ?>>
+                        <summary><?= e($faq['question']) ?></summary>
+                        <p><?= nl2br(e((string)$faq['answer'])) ?></p>
+                    </details>
+                <?php endforeach; ?>
+                <?php if (!$marketingFaqs): ?>
+                    <details class="marketing-faq-item" open>
+                        <summary>Have questions about FurEver Memories?</summary>
+                        <p>Our team can help you set up a warm, personal memorial page and guide you through public sharing after subscription approval.</p>
+                    </details>
+                <?php endif; ?>
             </div>
         </div>
     </section>

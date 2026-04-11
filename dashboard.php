@@ -103,28 +103,28 @@ $reactionChart = [
                         <div class="col-6 col-xl-3">
                             <div class="dashboard-stat-card">
                                 <span class="dashboard-stat-icon">&#128065;</span>
-                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['views']) ?></div>
+                                <div class="dashboard-stat-value" id="dashboardViewsCount"><?= e((string)$dashboardStats['views']) ?></div>
                                 <div class="dashboard-stat-label">Total Visits</div>
                             </div>
                         </div>
                         <div class="col-6 col-xl-3">
                             <div class="dashboard-stat-card">
                                 <span class="dashboard-stat-icon">&#128367;</span>
-                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['candles']) ?></div>
+                                <div class="dashboard-stat-value" id="dashboardCandlesCount"><?= e((string)$dashboardStats['candles']) ?></div>
                                 <div class="dashboard-stat-label">Light a Candle</div>
                             </div>
                         </div>
                         <div class="col-6 col-xl-3">
                             <div class="dashboard-stat-card">
                                 <span class="dashboard-stat-icon">&#9829;</span>
-                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['hearts']) ?></div>
+                                <div class="dashboard-stat-value" id="dashboardHeartsCount"><?= e((string)$dashboardStats['hearts']) ?></div>
                                 <div class="dashboard-stat-label">Send Heart</div>
                             </div>
                         </div>
                         <div class="col-6 col-xl-3">
                             <div class="dashboard-stat-card">
                                 <span class="dashboard-stat-icon">&#9993;</span>
-                                <div class="dashboard-stat-value"><?= e((string)$dashboardStats['messages']) ?></div>
+                                <div class="dashboard-stat-value" id="dashboardMessagesCount"><?= e((string)$dashboardStats['messages']) ?></div>
                                 <div class="dashboard-stat-label">Message Wall</div>
                             </div>
                         </div>
@@ -257,7 +257,7 @@ if (window.Chart) {
 
     const engagementEl = document.getElementById('engagementChart');
     if (engagementEl) {
-        new Chart(engagementEl, {
+        window.FM_ENGAGEMENT_CHART = new Chart(engagementEl, {
             type: 'doughnut',
             data: {
                 labels: reactionChartData.labels,
@@ -277,5 +277,19 @@ if (window.Chart) {
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+window.FM_DASHBOARD_ACTIVITY_CONFIG = {
+    endpoint: <?= json_encode('dashboard_activity.php' . ((is_admin() && $clientGuid !== '') ? '?clientguid=' . urlencode($clientGuid) : '')) ?>,
+    intervalMs: 8000,
+    counts: <?= json_encode($dashboardStats, JSON_UNESCAPED_SLASHES) ?>,
+    selectors: {
+        views: '#dashboardViewsCount',
+        candles: '#dashboardCandlesCount',
+        hearts: '#dashboardHeartsCount',
+        messages: '#dashboardMessagesCount'
+    }
+};
+</script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 </body>
 </html>

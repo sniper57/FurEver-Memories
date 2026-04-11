@@ -22,7 +22,7 @@ function app_base_url(): string
         return $scheme . '://' . $host;
     }
 
-    return 'http://furevermemories.xxxx.com';
+    return 'http://furevermemories.momentoshare.com';
 }
 
 define('BASE_URL', app_base_url());
@@ -37,14 +37,15 @@ define('BRUTE_FORCE_WINDOW_MINUTES', 15);
 define('EMAIL_VERIFICATION_EXPIRY_HOURS', 48);
 define('MAIL_FROM_NAME', 'FurEver Memories');
 define('MAIL_FROM_EMAIL', 'hello.momentoshare@gmail.com');
-define('BREVO_API_KEY', 'xxxx'); // set your Brevo API key here
+define('BREVO_API_KEY', 'xxxxx'); // set your Brevo API key here
 define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 define('PASSWORD_MIN_LENGTH', 8);
 
 // ===== PAYPAL CHECKOUT =====
 define('PAYPAL_MODE', 'sandbox'); // sandbox or live
-define('PAYPAL_CLIENT_ID', 'xxx');
+define('PAYPAL_CLIENT_ID', 'xxxx');
 define('PAYPAL_CLIENT_SECRET', 'xxxx');
+
 
 date_default_timezone_set('Asia/Manila');
 

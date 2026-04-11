@@ -1,4 +1,31 @@
 (function () {
+  const loader = document.getElementById('marketingLoader');
+  if (!loader) {
+    return;
+  }
+
+  document.body.classList.add('is-loading');
+
+  function hideLoader() {
+    loader.classList.add('is-hidden');
+    document.body.classList.remove('is-loading');
+    window.setTimeout(function () {
+      loader.remove();
+    }, 650);
+  }
+
+  if (document.readyState === 'complete') {
+    window.setTimeout(hideLoader, 350);
+  } else {
+    window.addEventListener('load', function () {
+      window.setTimeout(hideLoader, 350);
+    }, { once: true });
+  }
+
+  window.setTimeout(hideLoader, 3000);
+})();
+
+(function () {
   const list = window.FM_PLAYLIST || [];
   const player = document.getElementById('bgMusicPlayer');
   const shell = document.getElementById('musicPlayerShell');
