@@ -1,0 +1,6 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Public memorial pretty URL: /c/{client-guid}
+    RewriteRule ^c/([^/]+)/?$ index.php?c=$1 [L,QSA]
+</IfModule>
