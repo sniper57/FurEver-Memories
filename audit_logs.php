@@ -103,7 +103,7 @@ $to = min($offset + $perPage, $totalLogs);
                 <div class="card-body p-4">
                     <h2 class="h5 mb-3">Delete Old Logs</h2>
                     <p class="small text-muted">Use this when audit logs are too many. This deletes the oldest entries first and keeps newer activity history.</p>
-                    <form method="post" onsubmit="return confirm('Delete the oldest audit log entries now? This cannot be undone.');">
+                    <form method="post" data-swal-confirm="Delete the oldest audit log entries now? This cannot be undone." data-swal-title="Delete old logs?" data-swal-confirm-text="Yes, delete old logs">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="delete_old_logs">
                         <div class="mb-3">
@@ -118,5 +118,6 @@ $to = min($offset + $perPage, $totalLogs);
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
 </body>
 </html>
