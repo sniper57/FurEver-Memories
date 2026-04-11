@@ -2,7 +2,7 @@
 $marketingTitle = 'FurEver Memories';
 $marketingTagline = 'Forever in our hearts';
 $marketingLogo = rtrim(BASE_URL, '/') . '/assets/images/logo-furever-memories.png';
-$marketingPetSilhouette = rtrim(BASE_URL, '/') . '/assets/images/pet-companion-silhouette.svg';
+$marketingPetSilhouette = rtrim(BASE_URL, '/') . '/assets/images/pet-companion-silhouette-reference.svg';
 $marketingPlans = fetch_subscription_plans(true);
 $marketingFaqs = fetch_marketing_faqs(true);
 ?>
