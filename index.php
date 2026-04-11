@@ -2,10 +2,11 @@
 require_once __DIR__ . '/includes/auth.php';
 send_security_headers();
 
+$appUrl = rtrim(BASE_URL, '/');
 $clientGuid = trim($_GET['c'] ?? $_GET['clientguid'] ?? '');
 if ($clientGuid === '') {
     $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
-    if (preg_match('~/c/([^/?#]+)$~', $requestPath, $matches)) {
+    if (preg_match('~/c/([^/?#]+)/?$~', $requestPath, $matches)) {
         $clientGuid = rawurldecode($matches[1]);
     }
 }
@@ -67,12 +68,12 @@ if (!$isMemorialPage) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e(APP_NAME) ?> | Forever in our hearts</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/site.css">
+    <link rel="stylesheet" href="<?= e($appUrl . '/assets/css/site.css') ?>">
 </head>
 <body class="marketing-homepage">
 <div class="marketing-loader" id="marketingLoader" aria-live="polite" aria-label="FurEver Memories is loading">
     <div class="marketing-loader-card">
-        <img src="assets/images/logo-furever-memories.png" alt="<?= e(APP_NAME) ?> logo" class="marketing-loader-logo">
+        <img src="<?= e($appUrl . '/assets/images/logo-furever-memories.png') ?>" alt="<?= e(APP_NAME) ?> logo" class="marketing-loader-logo">
         <div class="marketing-loader-pulse" aria-hidden="true"></div>
         <p>Preparing a warm place for memories...</p>
     </div>
@@ -80,7 +81,7 @@ if (!$isMemorialPage) {
 <?php include __DIR__ . '/modules/module_marketing_home.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
-<script src="assets/js/site.js"></script>
+<script src="<?= e($appUrl . '/assets/js/site.js') ?>"></script>
 <?php if ($showMarketingLoginModal): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -119,7 +120,7 @@ if (!$publicAccessEnabled && !$allowPrivatePreview) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e(APP_NAME) ?> | Private Memorial</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/site.css">
+    <link rel="stylesheet" href="<?= e($appUrl . '/assets/css/site.css') ?>">
 </head>
 <body class="login-page">
 <div class="login-shell">
@@ -128,8 +129,8 @@ if (!$publicAccessEnabled && !$allowPrivatePreview) {
             <div class="row g-0">
                 <div class="col-lg-6 d-none d-lg-block">
                     <section class="login-brand-panel">
-                        <a href="index.php" class="login-brand-mark text-decoration-none">
-                            <img src="assets/images/logo-furever-memories.png" alt="FurEver Memories logo" class="login-brand-logo">
+                        <a href="<?= e($appUrl . '/index.php') ?>" class="login-brand-mark text-decoration-none">
+                            <img src="<?= e($appUrl . '/assets/images/logo-furever-memories.png') ?>" alt="FurEver Memories logo" class="login-brand-logo">
                             <span><?= e(APP_NAME) ?></span>
                         </a>
                         <span class="marketing-kicker">Private memorial preview</span>
@@ -146,8 +147,8 @@ if (!$publicAccessEnabled && !$allowPrivatePreview) {
                                 <p>Sign in as the client or administrator if you need to preview or manage this memorial.</p>
                             </div>
                             <div class="d-grid gap-2">
-                                <a href="login.php" class="btn login-submit-btn">Sign In</a>
-                                <a href="index.php" class="btn btn-outline-dark rounded-pill">Back to homepage</a>
+                                <a href="<?= e($appUrl . '/login.php') ?>" class="btn login-submit-btn">Sign In</a>
+                                <a href="<?= e($appUrl . '/index.php') ?>" class="btn btn-outline-dark rounded-pill">Back to homepage</a>
                             </div>
                         </div>
                     </section>
@@ -285,8 +286,8 @@ if ($supportSuccess !== '') {
 if ($supportError !== '') {
     $publicToasts[] = ['type' => 'error', 'title' => 'Support request', 'message' => $supportError];
 }
-$ownerDashboardUrl = 'dashboard.php';
-$billingUrl = 'subscription.php';
+$ownerDashboardUrl = $appUrl . '/dashboard.php';
+$billingUrl = $appUrl . '/subscription.php';
 ?>
 <!doctype html>
 <html lang="en">
@@ -296,7 +297,7 @@ $billingUrl = 'subscription.php';
     <title><?= e($memorial['pet_name'] ?: 'FurEver Memories') ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css">
-    <link rel="stylesheet" href="assets/css/site.css">
+    <link rel="stylesheet" href="<?= e($appUrl . '/assets/css/site.css') ?>">
     <style>:root{--bg-portrait:url('<?= e($bgPortrait) ?>');--bg-landscape:url('<?= e($bgLandscape) ?>');}</style>
 </head>
 <body>
@@ -331,9 +332,9 @@ $billingUrl = 'subscription.php';
                     <div class="d-flex gap-2 justify-content-center flex-wrap">
                         <?php if ($allowPrivatePreview && is_client()): ?>
                             <a href="<?= e($billingUrl) ?>" class="btn btn-dark rounded-pill px-4">Go to Billing &amp; Access</a>
-                            <a href="memorial_edit.php" class="btn btn-outline-dark rounded-pill px-4">Continue Editing</a>
+                            <a href="<?= e($appUrl . '/memorial_edit.php') ?>" class="btn btn-outline-dark rounded-pill px-4">Continue Editing</a>
                         <?php elseif ($allowPrivatePreview && is_admin()): ?>
-                            <a href="admin_clients.php" class="btn btn-dark rounded-pill px-4">Manage Client Access</a>
+                            <a href="<?= e($appUrl . '/admin_clients.php') ?>" class="btn btn-dark rounded-pill px-4">Manage Client Access</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -365,6 +366,6 @@ lightbox.init();
 window.FM_TOASTS = <?= json_encode($publicToasts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <?php include __DIR__ . '/includes/ui_feedback_assets.php'; ?>
-<script src="assets/js/site.js"></script>
+<script src="<?= e($appUrl . '/assets/js/site.js') ?>"></script>
 </body>
 </html>
